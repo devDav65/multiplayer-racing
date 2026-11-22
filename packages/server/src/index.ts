@@ -1,10 +1,18 @@
 import { createServer } from "node:http";
 import express from "express";
 import { Server } from "socket.io";
-import type { ClientToServerEvents, ServerToClientEvents } from "@racing/shared";
+import {
+  CIRCUIT_1,
+  buildTrack,
+  type ClientToServerEvents,
+  type ServerToClientEvents,
+} from "@racing/shared";
+import { playerInputSchema } from "./network/inputSchema";
+import { Room } from "./rooms/Room";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
+const ROOM_ID = "main";
 
 const app = express();
 
@@ -18,21 +26,40 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: CLIENT_ORIGIN },
 });
 
+// Un seul salon pour l'instant. La diffusion est un callback : Room ignore Socket.IO.
+const room = new Room(buildTrack(CIRCUIT_1), (snapshot) => {
+  // volatile : si un client est en retard, ce snapshot est abandonné plutôt qu'empilé.
+  io.to(ROOM_ID).volatile.emit("snapshot", snapshot);
+});
+
 io.on("connection", (socket) => {
-  console.log(`[+] ${socket.id} connecté (${io.engine.clientsCount} connexion(s))`);
+  if (!room.addPlayer(socket.id)) {
+    console.log(`[x] ${socket.id} refusé : salon plein`);
+    socket.disconnect(true);
+    return;
+  }
+  void socket.join(ROOM_ID);
+  console.log(`[+] ${socket.id} connecté (${room.playerCount} joueur(s))`);
 
   socket.emit("welcome", { playerId: socket.id, serverTime: Date.now() });
 
   socket.on("ping", (ack) => {
-    // Les types TypeScript n'existent plus à l'exécution : un client modifié
-    // peut envoyer "ping" sans callback. On vérifie donc avant d'appeler.
     if (typeof ack === "function") {
       ack(Date.now());
     }
   });
 
+  socket.on("input", (raw) => {
+    // `raw` est typé PlayerInput, mais ce n'est qu'une promesse de TypeScript :
+    // à l'exécution, c'est ce que le client a décidé d'envoyer.
+    const parsed = playerInputSchema.safeParse(raw);
+    if (!parsed.success) return;
+    room.applyInput(socket.id, parsed.data);
+  });
+
   socket.on("disconnect", (reason) => {
-    console.log(`[-] ${socket.id} déconnecté (${reason})`);
+    room.removePlayer(socket.id);
+    console.log(`[-] ${socket.id} déconnecté (${reason}, ${room.playerCount} joueur(s))`);
   });
 });
 

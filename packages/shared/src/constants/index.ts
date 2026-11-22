@@ -9,3 +9,6 @@ export const SNAPSHOT_RATE = 20;
 
 /** Nombre maximum de joueurs dans un salon. */
 export const MAX_PLAYERS_PER_ROOM = 20;
+
+/** Fréquence d'envoi des touches par le client, en Hz. */
+export const INPUT_SEND_RATE = 30;

@@ -7,13 +7,11 @@ const WHEELS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /** Modèle provisoire fait de boîtes. Purement visuel : aucune logique de jeu ici. */
-export function CarModel() {
-  return (
+export function CarModel({ color = "#d62828" }: { color?: string }) {  return (
     <group>
       <mesh position={[0, 0.55, 0]} castShadow>
         <boxGeometry args={[1.8, 0.6, 4]} />
-        <meshStandardMaterial color="#d62828" />
-      </mesh>
+        <meshStandardMaterial color={color} />      </mesh>
       <mesh position={[0, 1.05, 0.3]} castShadow>
         <boxGeometry args={[1.5, 0.5, 2]} />
         <meshStandardMaterial color="#222222" />

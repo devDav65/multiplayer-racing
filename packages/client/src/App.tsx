@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { CIRCUIT_1, SIM_TICK_RATE, buildTrack } from "@racing/shared";
-import { PlayerCar } from "./game/vehicles/PlayerCar";
+import { NetworkedGame } from "./game/NetworkedGame";
 import { TrackMesh } from "./game/tracks/TrackMesh";
 import { useConnection } from "./hooks/useConnection";
 
@@ -28,8 +28,7 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <Ground />
         <TrackMesh track={track} />
-        <PlayerCar track={track} speedRef={speedRef} />
-      </Canvas>
+        <NetworkedGame speedRef={speedRef} />      </Canvas>
       <div className="hud">
         <div ref={speedRef}>0 km/h</div>
         <div>Simulation : {SIM_TICK_RATE} Hz</div>

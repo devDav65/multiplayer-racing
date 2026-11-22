@@ -1,0 +1,120 @@
+import { useRef, useState, type RefObject } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Vector3 } from "three";
+import type { DirectionalLight, Group } from "three";
+import type { CarSnapshot } from "@racing/shared";
+import { useGameNetwork } from "../hooks/useGameNetwork";
+import { useKeyboardControls } from "../hooks/useKeyboardControls";
+import { gameState } from "../network/gameState";
+import { socket } from "../network/socket";
+import { CarModel } from "./vehicles/CarModel";
+
+const CAMERA_DISTANCE = 8;
+const CAMERA_HEIGHT = 3.5;
+const CAMERA_STIFFNESS = 5;
+const MS_TO_KMH = 3.6;
+const MY_COLOR = "#d62828";
+const OTHER_COLOR = "#2a6fdb";
+
+interface NetworkedGameProps {
+  speedRef: RefObject<HTMLDivElement | null>;
+}
+
+export function NetworkedGame({ speedRef }: NetworkedGameProps) {
+  const readControls = useKeyboardControls();
+  useGameNetwork(readControls);
+
+  // La LISTE des voitures change rarement (arrivée/départ d'un joueur) : state React.
+  // Leurs POSITIONS changent en permanence : refs, modifiées dans useFrame.
+  const [carIds, setCarIds] = useState<string[]>([]);
+  const idsKey = useRef("");
+  const groups = useRef(new Map<string, Group>());
+  const sunRef = useRef<DirectionalLight>(null);
+  const cameraTarget = useRef(new Vector3());
+  const cameraReady = useRef(false);
+  const lastSpeed = useRef(-1);
+
+  useFrame(({ camera }, delta) => {
+    const snapshot = gameState.snapshot;
+    if (!snapshot) return;
+
+    // 1. Mettre à jour la liste des voitures seulement si elle a changé.
+    const key = snapshot.cars.map((c) => c.id).join(",");
+    if (key !== idsKey.current) {
+      idsKey.current = key;
+      setCarIds(snapshot.cars.map((c) => c.id));
+    }
+
+    // 2. Placer chaque voiture exactement où le serveur dit qu'elle est.
+    let mine: CarSnapshot | undefined;
+    for (const car of snapshot.cars) {
+      const group = groups.current.get(car.id);
+      if (group) {
+        group.position.set(car.x, 0, car.z);
+        group.rotation.y = car.heading;
+      }
+      if (car.id === socket.id) mine = car;
+    }
+    if (!mine) return;
+
+    // 3. Caméra derrière MA voiture.
+    const forwardX = -Math.sin(mine.heading);
+    const forwardZ = -Math.cos(mine.heading);
+    cameraTarget.current.set(
+      mine.x - forwardX * CAMERA_DISTANCE,
+      CAMERA_HEIGHT,
+      mine.z - forwardZ * CAMERA_DISTANCE,
+    );
+    if (!cameraReady.current) {
+      camera.position.copy(cameraTarget.current);
+      cameraReady.current = true;
+    } else {
+      camera.position.lerp(cameraTarget.current, 1 - Math.exp(-CAMERA_STIFFNESS * delta));
+    }
+    camera.lookAt(mine.x, 1, mine.z);
+
+    // 4. Le soleil suit ma voiture.
+    const sun = sunRef.current;
+    if (sun) {
+      sun.position.set(mine.x + 10, 15, mine.z + 5);
+      sun.target.position.set(mine.x, 0, mine.z);
+      sun.target.updateMatrixWorld();
+    }
+
+    // 5. Vitesse.
+    const kmh = Math.round(Math.hypot(mine.vx, mine.vz) * MS_TO_KMH);
+    if (speedRef.current && kmh !== lastSpeed.current) {
+      speedRef.current.textContent = `${kmh} km/h`;
+      lastSpeed.current = kmh;
+    }
+  });
+
+  return (
+    <>
+      {carIds.map((id) => (
+        <group
+          key={id}
+          ref={(group) => {
+            if (group) groups.current.set(id, group);
+            else groups.current.delete(id);
+          }}
+        >
+          <CarModel color={id === socket.id ? MY_COLOR : OTHER_COLOR} />
+        </group>
+      ))}
+      <directionalLight
+        ref={sunRef}
+        intensity={1.5}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-30}
+        shadow-camera-right={30}
+        shadow-camera-top={30}
+        shadow-camera-bottom={-30}
+        shadow-camera-near={1}
+        shadow-camera-far={60}
+        shadow-bias={-0.0005}
+      />
+    </>
+  );
+}
