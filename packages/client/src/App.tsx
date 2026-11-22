@@ -1,53 +1,37 @@
 import { useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import type { Mesh } from "three";
+import { Canvas } from "@react-three/fiber";
 import { SIM_TICK_RATE } from "@racing/shared";
+import { PlayerCar } from "./game/vehicles/PlayerCar";
 import { useConnection } from "./hooks/useConnection";
-
-function SpinningCube() {
-  const meshRef = useRef<Mesh>(null);
-
-  useFrame((_state, delta) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += delta;
-    }
-  });
-
-  return (
-    <mesh ref={meshRef} position={[0, 1, 0]} castShadow>
-      <boxGeometry args={[2, 2, 2]} />
-      <meshStandardMaterial color="#ff5533" />
-    </mesh>
-  );
-}
 
 function Ground() {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[100, 100]} />
-      <meshStandardMaterial color="#2a3a2a" />
-    </mesh>
+    <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[1000, 1000]} />
+        <meshStandardMaterial color="#2a3a2a" />
+      </mesh>
+      {/* Grille de cases de 4 m : sans repère visuel, on ne sent pas la vitesse. */}
+      <gridHelper args={[1000, 250, "#6b8f6b", "#3d543d"]} position={[0, 0.01, 0]} />
+    </>
   );
 }
 
 export default function App() {
   const { connected, playerId, pingMs } = useConnection();
+  const speedRef = useRef<HTMLDivElement>(null);
 
   return (
     <>
-      <Canvas shadows camera={{ position: [6, 5, 8], fov: 60 }}>
-        <ambientLight intensity={0.4} />
-        <directionalLight
-          position={[10, 15, 5]}
-          intensity={1.5}
-          castShadow
-          shadow-mapSize={[2048, 2048]}
-        />
-        <SpinningCube />
+      <Canvas shadows camera={{ position: [0, 3.5, 8], fov: 60 }}>
+        <fog attach="fog" args={["#101820", 80, 400]} />
+        <ambientLight intensity={0.5} />
+        <PlayerCar speedRef={speedRef} />
         <Ground />
       </Canvas>
       <div className="hud">
-        <div>Simulation : {SIM_TICK_RATE} Hz (depuis @racing/shared)</div>
+        <div ref={speedRef}>0 km/h</div>
+        <div>Simulation : {SIM_TICK_RATE} Hz</div>
         <div>Serveur : {connected ? "connecté" : "déconnecté"}</div>
         <div>Joueur : {playerId ?? "-"}</div>
         <div>Ping : {pingMs !== null ? `${pingMs} ms` : "-"}</div>
