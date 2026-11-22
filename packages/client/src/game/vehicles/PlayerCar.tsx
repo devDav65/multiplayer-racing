@@ -2,40 +2,40 @@ import { useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
 import type { DirectionalLight, Group } from "three";
-import { SIM_DT, createCarState, stepCar, type CarState } from "@racing/shared";
+import { SIM_DT, createCarState, stepCarOnTrack, type CarState, type Track } from "@racing/shared";
 import { useKeyboardControls } from "../../hooks/useKeyboardControls";
 import { CarModel } from "./CarModel";
 
-const CAMERA_DISTANCE = 8; // mètres derrière la voiture
-const CAMERA_HEIGHT = 3.5; // mètres au-dessus du sol
-const CAMERA_STIFFNESS = 5; // plus haut = caméra plus rigide
+const CAMERA_DISTANCE = 8;
+const CAMERA_HEIGHT = 3.5;
+const CAMERA_STIFFNESS = 5;
 const MS_TO_KMH = 3.6;
 
 interface PlayerCarProps {
+  track: Track;
   /** Élément HTML où écrire la vitesse (mis à jour directement, sans passer par React). */
   speedRef: RefObject<HTMLDivElement | null>;
 }
 
-export function PlayerCar({ speedRef }: PlayerCarProps) {
+export function PlayerCar({ track, speedRef }: PlayerCarProps) {
   const readControls = useKeyboardControls();
   const groupRef = useRef<Group>(null);
   const sunRef = useRef<DirectionalLight>(null);
 
-  // Données qui changent 60 fois par seconde : des refs, pas du useState.
-  const car = useRef<CarState>(createCarState());
+  const car = useRef<CarState>(
+    createCarState(track.spawn.x, track.spawn.z, track.spawn.heading),
+  );
   const accumulator = useRef(0);
   const lastSpeed = useRef(-1);
   const cameraTarget = useRef(new Vector3());
+  const cameraReady = useRef(false);
 
-  // Simulation, voiture, caméra et soleil sont dans UN SEUL useFrame pour garantir
-  // l'ordre : la caméra est calculée APRÈS que la voiture a bougé, dans la même image.
   useFrame(({ camera }, delta) => {
-    // 1. Simulation à pas fixe. Le min() évite la « spirale de la mort » : après
-    //    un gros ralentissement (onglet en arrière-plan), on ne rattrape pas 10 s d'un coup.
+    // 1. Simulation à pas fixe : conduite + collisions avec les murs.
     accumulator.current += Math.min(delta, 0.1);
     const controls = readControls();
     while (accumulator.current >= SIM_DT) {
-      car.current = stepCar(car.current, controls);
+      car.current = stepCarOnTrack(car.current, controls, track);
       accumulator.current -= SIM_DT;
     }
     const { x, z, heading, vx, vz } = car.current;
@@ -47,8 +47,8 @@ export function PlayerCar({ speedRef }: PlayerCarProps) {
       group.rotation.y = heading;
     }
 
-    // 3. Caméra : se place derrière la voiture, en rattrapant sa cible en douceur.
-    //    1 - exp(-k·delta) rend le lissage identique à 60 ou 144 Hz.
+    // 3. Caméra derrière la voiture. À la première image, on la place directement
+    //    (sinon elle traverserait la scène depuis sa position initiale).
     const forwardX = -Math.sin(heading);
     const forwardZ = -Math.cos(heading);
     cameraTarget.current.set(
@@ -56,10 +56,15 @@ export function PlayerCar({ speedRef }: PlayerCarProps) {
       CAMERA_HEIGHT,
       z - forwardZ * CAMERA_DISTANCE,
     );
-    camera.position.lerp(cameraTarget.current, 1 - Math.exp(-CAMERA_STIFFNESS * delta));
+    if (!cameraReady.current) {
+      camera.position.copy(cameraTarget.current);
+      cameraReady.current = true;
+    } else {
+      camera.position.lerp(cameraTarget.current, 1 - Math.exp(-CAMERA_STIFFNESS * delta));
+    }
     camera.lookAt(x, 1, z);
 
-    // 4. Le soleil suit la voiture, sinon les ombres n'existent qu'autour de l'origine.
+    // 4. Le soleil suit la voiture pour que les ombres restent visibles.
     const sun = sunRef.current;
     if (sun) {
       sun.position.set(x + 10, 15, z + 5);
@@ -67,7 +72,7 @@ export function PlayerCar({ speedRef }: PlayerCarProps) {
       sun.target.updateMatrixWorld();
     }
 
-    // 5. Vitesse : on écrit dans le DOM uniquement quand la valeur affichée change.
+    // 5. Vitesse affichée, écrite dans le DOM seulement quand elle change.
     const kmh = Math.round(Math.hypot(vx, vz) * MS_TO_KMH);
     if (speedRef.current && kmh !== lastSpeed.current) {
       speedRef.current.textContent = `${kmh} km/h`;
