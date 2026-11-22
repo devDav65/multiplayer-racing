@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { INPUT_SEND_RATE, type CarControls, type Snapshot } from "@racing/shared";
-import { gameState } from "../network/gameState";
 import { socket } from "../network/socket";
+import { clearSnapshots, pushSnapshot } from "../network/snapshotBuffer";
 
 /** Envoie les touches au serveur et mémorise les snapshots reçus. */
 export function useGameNetwork(readControls: () => CarControls): void {
@@ -9,7 +9,7 @@ export function useGameNetwork(readControls: () => CarControls): void {
     let seq = 0;
 
     const onSnapshot = (snapshot: Snapshot) => {
-      gameState.snapshot = snapshot;
+      pushSnapshot(snapshot);
     };
     socket.on("snapshot", onSnapshot);
 
@@ -22,7 +22,7 @@ export function useGameNetwork(readControls: () => CarControls): void {
     return () => {
       clearInterval(interval);
       socket.off("snapshot", onSnapshot);
-      gameState.snapshot = null;
+      clearSnapshots();
     };
   }, [readControls]);
 }

@@ -5,7 +5,7 @@ import type { DirectionalLight, Group } from "three";
 import type { CarSnapshot } from "@racing/shared";
 import { useGameNetwork } from "../hooks/useGameNetwork";
 import { useKeyboardControls } from "../hooks/useKeyboardControls";
-import { gameState } from "../network/gameState";
+import { INTERPOLATION_DELAY_MS, sampleCars } from "../network/snapshotBuffer";
 import { socket } from "../network/socket";
 import { CarModel } from "./vehicles/CarModel";
 
@@ -35,19 +35,20 @@ export function NetworkedGame({ speedRef }: NetworkedGameProps) {
   const lastSpeed = useRef(-1);
 
   useFrame(({ camera }, delta) => {
-    const snapshot = gameState.snapshot;
-    if (!snapshot) return;
+    // 1. Où étaient les voitures il y a INTERPOLATION_DELAY_MS millisecondes ?
+    const cars = sampleCars(performance.now() - INTERPOLATION_DELAY_MS);
+    if (!cars) return;
 
-    // 1. Mettre à jour la liste des voitures seulement si elle a changé.
-    const key = snapshot.cars.map((c) => c.id).join(",");
+    // 2. Mettre à jour la liste des voitures seulement si elle a changé.
+    const key = cars.map((c) => c.id).join(",");
     if (key !== idsKey.current) {
       idsKey.current = key;
-      setCarIds(snapshot.cars.map((c) => c.id));
+      setCarIds(cars.map((c) => c.id));
     }
 
-    // 2. Placer chaque voiture exactement où le serveur dit qu'elle est.
+    // 3. Placer chaque voiture à sa position interpolée.
     let mine: CarSnapshot | undefined;
-    for (const car of snapshot.cars) {
+    for (const car of cars) {
       const group = groups.current.get(car.id);
       if (group) {
         group.position.set(car.x, 0, car.z);
@@ -57,7 +58,7 @@ export function NetworkedGame({ speedRef }: NetworkedGameProps) {
     }
     if (!mine) return;
 
-    // 3. Caméra derrière MA voiture.
+    // 4. Caméra derrière MA voiture.
     const forwardX = -Math.sin(mine.heading);
     const forwardZ = -Math.cos(mine.heading);
     cameraTarget.current.set(
@@ -73,7 +74,7 @@ export function NetworkedGame({ speedRef }: NetworkedGameProps) {
     }
     camera.lookAt(mine.x, 1, mine.z);
 
-    // 4. Le soleil suit ma voiture.
+    // 5. Le soleil suit ma voiture.
     const sun = sunRef.current;
     if (sun) {
       sun.position.set(mine.x + 10, 15, mine.z + 5);
@@ -81,7 +82,7 @@ export function NetworkedGame({ speedRef }: NetworkedGameProps) {
       sun.target.updateMatrixWorld();
     }
 
-    // 5. Vitesse.
+    // 6. Vitesse.
     const kmh = Math.round(Math.hypot(mine.vx, mine.vz) * MS_TO_KMH);
     if (speedRef.current && kmh !== lastSpeed.current) {
       speedRef.current.textContent = `${kmh} km/h`;
