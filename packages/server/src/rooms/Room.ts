@@ -5,7 +5,6 @@ import {
   SNAPSHOT_RATE,
   createCarState,
   stepCarOnTrack,
-  type CarControls,
   type CarState,
   type PlayerInput,
   type Snapshot,
@@ -17,15 +16,20 @@ interface Player {
   /** Emplacement sur la grille de départ. */
   slot: number;
   car: CarState;
-  /** Dernières touches reçues : rejouées à chaque pas jusqu'à ce que de nouvelles arrivent. */
-  controls: CarControls;
+  /** Inputs reçus mais pas encore exécutés, du plus ancien au plus récent. */
+  queue: PlayerInput[];
+  /** Nombre d'inputs que ce joueur a encore le droit d'exécuter (anti-accélération). */
+  budget: number;
   lastInputSeq: number;
 }
 
-const IDLE_CONTROLS: CarControls = { throttle: 0, steer: 0, brake: 0, handbrake: false };
 const TICKS_PER_SNAPSHOT = SIM_TICK_RATE / SNAPSHOT_RATE;
 const GRID_ROW_SPACING = 8; // mètres entre deux rangées
 const GRID_LANE_OFFSET = 3.5; // mètres entre l'axe de la piste et chaque colonne
+
+const MAX_QUEUED_INPUTS = 8; // au-delà, on jette les plus anciens
+const MAX_INPUT_BUDGET = 6; // 6 pas de rattrapage maximum (100 ms)
+const MAX_INPUTS_PER_TICK = 3; // un rattrapage ne dépasse jamais 3 pas à la fois
 
 /** Position de départ du joueur n° `slot` : grille de 2 colonnes derrière la ligne. */
 function gridPosition(track: Track, slot: number): CarState {
@@ -78,7 +82,8 @@ export class Room {
       id,
       slot,
       car: gridPosition(this.track, slot),
-      controls: IDLE_CONTROLS,
+      queue: [],
+      budget: MAX_INPUT_BUDGET,
       lastInputSeq: 0,
     });
     this.start();
@@ -90,18 +95,13 @@ export class Room {
     if (this.players.size === 0) this.stop();
   }
 
-  /** Reçoit des touches DÉJÀ validées. On ne garde que les champs de conduite. */
+  /** Met un input DÉJÀ validé en file d'attente. Il sera exécuté à un prochain pas. */
   applyInput(id: string, input: PlayerInput): void {
     const player = this.players.get(id);
     if (!player) return;
-    // WebSocket (TCP) garde l'ordre des messages : pas besoin de trier par `seq`.
-    player.controls = {
-      throttle: input.throttle,
-      steer: input.steer,
-      brake: input.brake,
-      handbrake: input.handbrake,
-    };
-    player.lastInputSeq = input.seq;
+    player.queue.push(input);
+    // File trop longue : on garde les plus récents pour ne pas accumuler de retard.
+    if (player.queue.length > MAX_QUEUED_INPUTS) player.queue.shift();
   }
 
   private start(): void {
@@ -132,8 +132,21 @@ export class Room {
 
   private step(): void {
     for (const player of this.players.values()) {
-      player.car = stepCarOnTrack(player.car, player.controls, this.track);
+      // Le budget se recharge d'un point par pas serveur, jusqu'au plafond.
+      player.budget = Math.min(player.budget + 1, MAX_INPUT_BUDGET);
+
+      // Un input = un pas de simulation de CETTE voiture. File vide : elle attend.
+      let executed = 0;
+      while (executed < MAX_INPUTS_PER_TICK && player.budget >= 1) {
+        const input = player.queue.shift();
+        if (!input) break;
+        player.car = stepCarOnTrack(player.car, input, this.track);
+        player.lastInputSeq = input.seq;
+        player.budget -= 1;
+        executed++;
+      }
     }
+
     this.tick++;
     if (this.tick % TICKS_PER_SNAPSHOT === 0) {
       this.onSnapshot(this.createSnapshot());

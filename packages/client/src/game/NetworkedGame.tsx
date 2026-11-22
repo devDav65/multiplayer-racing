@@ -2,7 +2,8 @@ import { useRef, useState, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
 import type { DirectionalLight, Group } from "three";
-import type { CarSnapshot } from "@racing/shared";
+import { SIM_DT, type CarSnapshot } from "@racing/shared";
+import { sendInput } from "../network/inputStream";
 import { useGameNetwork } from "../hooks/useGameNetwork";
 import { useKeyboardControls } from "../hooks/useKeyboardControls";
 import { INTERPOLATION_DELAY_MS, sampleCars } from "../network/snapshotBuffer";
@@ -22,8 +23,7 @@ interface NetworkedGameProps {
 
 export function NetworkedGame({ speedRef }: NetworkedGameProps) {
   const readControls = useKeyboardControls();
-  useGameNetwork(readControls);
-
+  useGameNetwork();
   // La LISTE des voitures change rarement (arrivée/départ d'un joueur) : state React.
   // Leurs POSITIONS changent en permanence : refs, modifiées dans useFrame.
   const [carIds, setCarIds] = useState<string[]>([]);
@@ -33,8 +33,18 @@ export function NetworkedGame({ speedRef }: NetworkedGameProps) {
   const cameraTarget = useRef(new Vector3());
   const cameraReady = useRef(false);
   const lastSpeed = useRef(-1);
+  const inputAccumulator = useRef(0);
 
   useFrame(({ camera }, delta) => {
+    // 0. Un input par pas de simulation : même accumulateur à pas fixe que le serveur.
+    //    On envoie même quand aucune touche n'est enfoncée (touches à zéro) : le serveur
+    //    attend un input par pas, sinon il fige la voiture.
+    inputAccumulator.current += Math.min(delta, 0.1);
+    const controls = readControls();
+    while (inputAccumulator.current >= SIM_DT) {
+      sendInput(controls);
+      inputAccumulator.current -= SIM_DT;
+    }
     // 1. Où étaient les voitures il y a INTERPOLATION_DELAY_MS millisecondes ?
     const cars = sampleCars(performance.now() - INTERPOLATION_DELAY_MS);
     if (!cars) return;
