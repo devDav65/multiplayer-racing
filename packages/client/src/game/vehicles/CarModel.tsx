@@ -12,7 +12,7 @@ export function CarModel({ color = "#d62828" }: { color?: string }) {
     <group>
       <mesh position={[0, 0.55, 0]} castShadow>
         <boxGeometry args={[1.8, 0.6, 4]} />
-        <meshStandardMaterial color={color} />{" "}
+        <meshStandardMaterial color={color} />
       </mesh>
       <mesh position={[0, 1.05, 0.3]} castShadow>
         <boxGeometry args={[1.5, 0.5, 2]} />
