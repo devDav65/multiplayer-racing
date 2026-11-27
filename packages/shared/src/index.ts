@@ -1,4 +1,7 @@
 export * from "./constants";
+export * from "./race/grid";
+export * from "./race/progress";
+export * from "./sim/autopilot";
 export * from "./sim/car";
 export * from "./sim/collision";
 export * from "./tracks/circuit1";

@@ -30,6 +30,21 @@ export interface Track {
   spawn: { x: number; z: number; heading: number };
   /** Longueur de la ligne centrale, en mètres. */
   length: number;
+  /**
+   * Portes de passage, dans l'ordre de la course. La porte 0 est la ligne de départ/arrivée,
+   * placée juste devant le point d'apparition (la grille est derrière elle).
+   */
+  gates: Gate[];
+}
+
+/** Ligne de passage en travers de la piste. */
+export interface Gate {
+  /** Centre de la porte (sur la ligne centrale). */
+  x: number;
+  z: number;
+  /** Direction de course (vecteur unitaire) : on franchit la porte dans ce sens. */
+  tx: number;
+  tz: number;
 }
 
 /** Interpolation Catmull-Rom : courbe lisse qui passe par p1 (t=0) et p2 (t=1). */
@@ -88,6 +103,17 @@ export function buildTrack(def: TrackDefinition, samplesPerSegment = 16): Track 
   const ahead = wrapAt(points, startIndex + 1);
   const heading = Math.atan2(-(ahead.x - start.x), -(ahead.z - start.z));
 
+  // 4) Une porte par point de contrôle, en partant du départ. Décalée d'un échantillon
+  //    vers l'avant pour que la première voiture de la grille soit bien DERRIÈRE la ligne.
+  //    Tangente = normale tournée de -90° (normals = (-tz, tx), donc t = (n.z, -n.x)).
+  const gates: Gate[] = [];
+  for (let k = 0; k < controls.length; k++) {
+    const index = (def.startControlIndex + k) * samplesPerSegment + 1;
+    const p = wrapAt(points, index);
+    const n = wrapAt(normals, index);
+    gates.push({ x: p.x, z: p.z, tx: n.z, tz: -n.x });
+  }
+
   return {
     id: def.id,
     name: def.name,
@@ -96,6 +122,7 @@ export function buildTrack(def: TrackDefinition, samplesPerSegment = 16): Track 
     normals,
     spawn: { x: start.x, z: start.z, heading },
     length,
+    gates,
   };
 }
 
