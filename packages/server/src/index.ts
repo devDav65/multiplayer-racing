@@ -7,14 +7,16 @@ import {
   type ServerToClientEvents,
 } from "@racing/shared";
 import { Server } from "socket.io";
-import { AuthService } from "./auth/AuthService";
+import { AuthService, type User } from "./auth/AuthService";
 import { loadConfig, loadEnvFile } from "./config";
 import { runMigrations } from "./db/migrate";
 import { createPool } from "./db/pool";
 import { createHttpApp } from "./http/app";
+import { parseCookies, SESSION_COOKIE } from "./http/cookies";
 import { playerInputSchema } from "./network/inputSchema";
 import { RateLimiter } from "./network/RateLimiter";
 import { createRoomSchema, joinRoomSchema } from "./network/roomSchemas";
+import { RaceRepository } from "./races/RaceRepository";
 import { Room } from "./rooms/Room";
 import { RoomManager } from "./rooms/RoomManager";
 
@@ -40,6 +42,7 @@ const CONTROL_BURST = 5;
 const CONTROL_PER_SECOND = 2;
 
 const auth = pool ? new AuthService(pool) : null;
+const races = pool ? new RaceRepository(pool) : null;
 if (auth) {
   // Ménage régulier des sessions expirées (elles sont de toute façon refusées).
   const purge = () =>
@@ -50,6 +53,7 @@ if (auth) {
 
 const app = createHttpApp({
   auth,
+  races,
   clientOrigin: config.CLIENT_ORIGIN,
   secureCookies: config.NODE_ENV === "production",
   trustProxy: config.TRUST_PROXY,
@@ -57,7 +61,13 @@ const app = createHttpApp({
 
 const httpServer = createServer(app);
 
-const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
+/** Données attachées à chaque socket. */
+interface SocketData {
+  /** Compte connecté (cookie de session valide), ou null pour un invité. */
+  user: User | null;
+}
+
+const io = new Server<ClientToServerEvents, ServerToClientEvents, object, SocketData>(httpServer, {
   cors: { origin: config.CLIENT_ORIGIN },
   // Nos messages font quelques centaines d'octets : inutile d'accepter 1 Mo (défaut).
   maxHttpBufferSize: 16 * 1024,
@@ -77,12 +87,42 @@ const rooms = new RoomManager(
       // volatile : si un client est en retard, ce snapshot est abandonné plutôt qu'empilé.
       onSnapshot: (snapshot) => io.to(channel(code)).volatile.emit("snapshot", snapshot),
       onRoomState: (state) => io.to(channel(code)).emit("roomState", state),
+      // Enregistrement en base en arrière-plan : une base lente ou en panne ne bloque
+      // jamais la simulation, et l'erreur est seulement journalisée.
+      onRaceFinished: (race) => {
+        races
+          ?.saveRace(race)
+          .catch((e: Error) => console.error(`[db] course ${code} non enregistrée :`, e.message));
+      },
     }),
 );
 
+// Authentification du socket : le navigateur envoie le cookie de session avec la
+// connexion. Pas de cookie, session invalide ou base en panne : on joue en invité.
+io.use(async (socket, next) => {
+  socket.data.user = null;
+  const token = parseCookies(socket.handshake.headers.cookie)[SESSION_COOKIE];
+  if (auth && token) {
+    try {
+      socket.data.user = await auth.getSessionUser(token);
+    } catch (e) {
+      console.error("[auth] session illisible :", (e as Error).message);
+    }
+  }
+  next();
+});
+
 io.on("connection", (socket) => {
-  console.log(`[+] ${socket.id} connecté`);
-  socket.emit("welcome", { playerId: socket.id, serverTime: Date.now() });
+  const user = socket.data.user;
+  console.log(`[+] ${socket.id} connecté${user ? ` (${user.username})` : ""}`);
+  socket.emit("welcome", {
+    playerId: socket.id,
+    serverTime: Date.now(),
+    username: user?.username ?? null,
+  });
+  /** Un joueur connecté joue toujours sous le pseudo de son compte. */
+  const displayName = (requested: string) => user?.username ?? requested;
+  const userId = user?.id ?? null;
 
   const inputLimiter = new RateLimiter(INPUT_BURST, INPUT_PER_SECOND);
   const controlLimiter = new RateLimiter(CONTROL_BURST, CONTROL_PER_SECOND);
@@ -104,14 +144,14 @@ io.on("connection", (socket) => {
     if (!controlLimiter.tryConsume()) return;
     const parsed = createRoomSchema.safeParse(raw);
     if (!parsed.success) return afterJoin({ ok: false, error: "Pseudo invalide." }, ack);
-    afterJoin(rooms.create(socket.id, parsed.data.name), ack);
+    afterJoin(rooms.create(socket.id, displayName(parsed.data.name), userId), ack);
   });
 
   socket.on("joinRoom", (raw, ack) => {
     if (!controlLimiter.tryConsume()) return;
     const parsed = joinRoomSchema.safeParse(raw);
     if (!parsed.success) return afterJoin({ ok: false, error: "Pseudo ou code invalide." }, ack);
-    afterJoin(rooms.join(socket.id, parsed.data.code, parsed.data.name), ack);
+    afterJoin(rooms.join(socket.id, parsed.data.code, displayName(parsed.data.name), userId), ack);
   });
 
   socket.on("leaveRoom", () => {

@@ -10,7 +10,8 @@ export type JoinRoomResult =
 /** Événements envoyés PAR le serveur VERS le client. */
 export interface ServerToClientEvents {
   /** Envoyé une seule fois, juste après la connexion. */
-  welcome: (payload: { playerId: string; serverTime: number }) => void;
+  /** `username` : compte reconnu grâce au cookie de session, ou null (invité). */
+  welcome: (payload: { playerId: string; serverTime: number; username: string | null }) => void;
   /** État de toutes les voitures du salon, 20 fois par seconde. */
   snapshot: (snapshot: Snapshot) => void;
   /** État du salon (joueurs, hôte, phase, résultats), à chaque changement. */

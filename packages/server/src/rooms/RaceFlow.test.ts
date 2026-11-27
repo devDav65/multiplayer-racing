@@ -10,6 +10,7 @@ import {
   type Snapshot,
 } from "@racing/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { RaceRecord } from "../races/RaceRepository";
 import { Room } from "./Room";
 
 const track = buildTrack(CIRCUIT_1);
@@ -192,6 +193,39 @@ describe("course complète", () => {
     room.addPlayer("c", "C"); // arrive après : spectateur, le salon n'est pas vide
     room.step();
     expect(room.currentPhase).toBe("results");
+  });
+});
+
+describe("fin de course", () => {
+  it("signale la course terminée avec les comptes des joueurs", () => {
+    const records: RaceRecord[] = [];
+    const room = new Room({
+      code: "TEST",
+      track,
+      laps: 1,
+      onSnapshot: () => {},
+      onRoomState: () => {},
+      onRaceFinished: (r) => records.push(r),
+    });
+    room.addPlayer("a", "Alice", 42);
+    room.addPlayer("g", "Invité");
+    room.startRace("a");
+    // Alice roule à l'autopilote ; l'invité reste sur place et finira DNF après le délai.
+    let seq = 0;
+    for (let n = 0; n < 60 * 120 && room.currentPhase !== "results"; n++) {
+      const state = room.getPlayerState("a");
+      if (state) room.applyInput("a", { seq: ++seq, ...autopilot(track, state.car) });
+      room.step();
+    }
+    expect(room.currentPhase).toBe("results");
+    expect(records).toHaveLength(1);
+    const record = records[0];
+    expect(record).toMatchObject({ roomCode: "TEST", trackId: track.id, laps: 1 });
+    expect(record?.results).toEqual([
+      { rank: 1, userId: 42, displayName: "Alice", timeMs: expect.any(Number) },
+      { rank: 2, userId: null, displayName: "Invité", timeMs: null },
+    ]);
+    expect(record?.finishedAt.getTime()).toBeGreaterThanOrEqual(record?.startedAt.getTime() ?? 0);
   });
 });
 

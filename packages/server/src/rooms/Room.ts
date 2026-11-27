@@ -23,10 +23,13 @@ import {
   type Track,
   updateProgress,
 } from "@racing/shared";
+import type { RaceRecord } from "../races/RaceRepository";
 
 interface Player {
   id: string;
   name: string;
+  /** Compte connecté, ou null pour un invité. */
+  userId: number | null;
   /** Emplacement sur la grille de départ. */
   slot: number;
   car: CarState;
@@ -50,6 +53,8 @@ export interface RoomOptions {
   laps?: number;
   onSnapshot: (snapshot: Snapshot) => void;
   onRoomState: (state: RoomState) => void;
+  /** Appelé à la fin de chaque course (enregistrement en base). */
+  onRaceFinished?: (race: RaceRecord) => void;
 }
 
 const TICKS_PER_SNAPSHOT = SIM_TICK_RATE / SNAPSHOT_RATE;
@@ -70,6 +75,9 @@ export class Room {
   private readonly laps: number;
   private readonly onSnapshot: (snapshot: Snapshot) => void;
   private readonly onRoomState: (state: RoomState) => void;
+  private readonly onRaceFinished: ((race: RaceRecord) => void) | undefined;
+  /** Heure réelle du départ de la course en cours (pour l'historique). */
+  private raceStartedAt: Date | null = null;
   private readonly players = new Map<string, Player>();
   private hostId: string | null = null;
   private phase: RacePhase = "lobby";
@@ -89,6 +97,7 @@ export class Room {
     this.laps = options.laps ?? RACE_LAPS;
     this.onSnapshot = options.onSnapshot;
     this.onRoomState = options.onRoomState;
+    this.onRaceFinished = options.onRaceFinished;
   }
 
   get playerCount(): number {
@@ -100,7 +109,7 @@ export class Room {
   }
 
   /** Renvoie false si le salon est plein ou si le joueur y est déjà. */
-  addPlayer(id: string, name: string): boolean {
+  addPlayer(id: string, name: string, userId: number | null = null): boolean {
     if (this.players.has(id) || this.players.size >= MAX_PLAYERS_PER_ROOM) return false;
 
     // Premier emplacement de grille libre.
@@ -111,6 +120,7 @@ export class Room {
     this.players.set(id, {
       id,
       name,
+      userId,
       slot,
       car: gridPosition(this.track, slot),
       queue: [],
@@ -260,7 +270,10 @@ export class Room {
       case "lobby":
         return;
       case "countdown":
-        if (elapsed >= COUNTDOWN_TICKS) this.setPhase("racing");
+        if (elapsed >= COUNTDOWN_TICKS) {
+          this.raceStartedAt = new Date();
+          this.setPhase("racing");
+        }
         return;
       case "racing": {
         const racers = this.racers();
@@ -272,6 +285,7 @@ export class Room {
           this.firstFinishTick !== null && this.tick - this.firstFinishTick >= FINISH_GRACE_TICKS;
         if (everyoneDone || graceOver) {
           this.results = this.computeResults();
+          this.reportRace(this.results);
           this.setPhase("results");
         }
         return;
@@ -304,6 +318,24 @@ export class Room {
       this.racers().map((p) => ({ id: p.id, car: p.car, progress: p.progress })),
       this.track,
     );
+  }
+
+  /** Signale la course terminée (s'il y avait au moins un coureur). */
+  private reportRace(results: ResultEntry[]): void {
+    if (!this.onRaceFinished || results.length === 0 || !this.raceStartedAt) return;
+    this.onRaceFinished({
+      roomCode: this.code,
+      trackId: this.track.id,
+      laps: this.laps,
+      startedAt: this.raceStartedAt,
+      finishedAt: new Date(),
+      results: results.map((r) => ({
+        rank: r.rank,
+        userId: this.players.get(r.id)?.userId ?? null,
+        displayName: r.name,
+        timeMs: r.timeMs,
+      })),
+    });
   }
 
   private computeResults(): ResultEntry[] {

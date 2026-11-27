@@ -2,12 +2,15 @@ import express, { type NextFunction, type Request, type Response } from "express
 import type { AuthService } from "../auth/AuthService";
 import { SESSION_TTL_MS } from "../auth/AuthService";
 import { KeyedRateLimiter } from "../network/KeyedRateLimiter";
-import { credentialsSchema } from "./authSchemas";
+import type { RaceRepository } from "../races/RaceRepository";
+import { credentialsSchema, usernameSchema } from "./authSchemas";
 import { clearSessionCookie, parseCookies, SESSION_COOKIE, sessionCookie } from "./cookies";
 
 export interface HttpAppOptions {
   /** null : pas de base de données, les comptes sont désactivés. */
   auth: AuthService | null;
+  /** null : pas de base de données, pas de statistiques. */
+  races?: RaceRepository | null;
   /** Origine du client : les requêtes qui modifient quelque chose doivent en venir. */
   clientOrigin: string;
   /** Cookie Secure (HTTPS seulement). Vrai en production. */
@@ -103,6 +106,26 @@ export function createHttpApp(options: HttpAppOptions): express.Express {
     const user = auth && token ? await auth.getSessionUser(token) : null;
     if (!user) return fail(res, 401, "not_logged_in", "Non connecté.");
     res.json({ user });
+  });
+
+  // Statistiques publiques d'un joueur et son historique.
+  app.use("/api/users", (_req: Request, res: Response, next: NextFunction) => {
+    if (!options.races) return fail(res, 503, "accounts_disabled", "Les comptes sont désactivés.");
+    next();
+  });
+
+  app.get("/api/users/:username/stats", async (req, res) => {
+    const username = usernameSchema.safeParse(req.params.username);
+    const stats = username.success ? await options.races?.getUserStats(username.data) : null;
+    if (!stats) return fail(res, 404, "user_not_found", "Joueur introuvable.");
+    res.json({ stats });
+  });
+
+  app.get("/api/users/:username/races", async (req, res) => {
+    const username = usernameSchema.safeParse(req.params.username);
+    if (!username.success) return fail(res, 404, "user_not_found", "Joueur introuvable.");
+    const races = (await options.races?.getRecentRaces(username.data, 20)) ?? [];
+    res.json({ races });
   });
 
   // Erreurs inattendues (base injoignable...) : on journalise, sans détails pour le client.

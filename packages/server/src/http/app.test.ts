@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AuthService } from "../auth/AuthService";
 import { createTestDb, TEST_DATABASE_URL } from "../db/testDb";
+import { RaceRepository } from "../races/RaceRepository";
 import { createHttpApp } from "./app";
 
 const ORIGIN = "http://localhost:5173";
@@ -12,9 +13,10 @@ const ORIGIN = "http://localhost:5173";
 let clock = 0;
 
 /** Démarre l'app sur un port libre et renvoie une fonction de requête. */
-async function start(auth: AuthService | null) {
+async function start(auth: AuthService | null, races: RaceRepository | null = null) {
   const app = createHttpApp({
     auth,
+    races,
     clientOrigin: ORIGIN,
     secureCookies: false,
     trustProxy: 0,
@@ -53,7 +55,7 @@ describe.skipIf(!TEST_DATABASE_URL)("HTTP /api/auth (PostgreSQL)", () => {
 
   beforeAll(async () => {
     ({ pool, drop } = await createTestDb());
-    ({ server, request } = await start(new AuthService(pool)));
+    ({ server, request } = await start(new AuthService(pool), new RaceRepository(pool)));
   });
   beforeEach(() => {
     clock += 3_600_000;
@@ -129,5 +131,24 @@ describe.skipIf(!TEST_DATABASE_URL)("HTTP /api/auth (PostgreSQL)", () => {
       );
     }
     expect(statuses).toContain(429);
+  });
+
+  it("expose les statistiques et l'historique d'un joueur", async () => {
+    const reg = await post("/api/auth/register", { username: "Eve", password: "unmotdepasse" });
+    const { user } = (await reg.json()) as { user: { id: number } };
+    await new RaceRepository(pool).saveRace({
+      roomCode: "ABCD",
+      trackId: "circuit-1",
+      laps: 3,
+      startedAt: new Date(Date.UTC(2026, 0, 1)),
+      finishedAt: new Date(Date.UTC(2026, 0, 1, 0, 2)),
+      results: [{ rank: 1, userId: user.id, displayName: "Eve", timeMs: 80_000 }],
+    });
+    const stats = await request("/api/users/eve/stats");
+    expect(await stats.json()).toMatchObject({ stats: { username: "Eve", races: 1, wins: 1 } });
+    const races = (await (await request("/api/users/Eve/races")).json()) as { races: unknown[] };
+    expect(races.races).toHaveLength(1);
+    expect((await request("/api/users/inconnu/stats")).status).toBe(404);
+    expect((await request("/api/users/%27%3B--/stats")).status).toBe(404);
   });
 });

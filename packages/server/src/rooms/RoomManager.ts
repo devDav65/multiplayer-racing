@@ -29,20 +29,21 @@ export class RoomManager {
     return this.playerRooms.get(playerId);
   }
 
-  create(playerId: string, name: string): JoinRoomResult {
+  /** `userId` : compte connecté (null pour un invité). */
+  create(playerId: string, name: string, userId: number | null = null): JoinRoomResult {
     const code = this.newCode();
     if (!code) return { ok: false, error: "Impossible de créer un salon, réessaie." };
     const room = this.createRoom(code);
     this.rooms.set(code, room);
-    return this.enter(playerId, room, name);
+    return this.enter(playerId, room, name, userId);
   }
 
-  join(playerId: string, code: string, name: string): JoinRoomResult {
+  join(playerId: string, code: string, name: string, userId: number | null = null): JoinRoomResult {
     const room = this.rooms.get(code);
     if (!room) return { ok: false, error: "Salon introuvable." };
     if (this.playerRooms.get(playerId) === room)
       return { ok: true, code, state: room.getRoomState() };
-    return this.enter(playerId, room, name);
+    return this.enter(playerId, room, name, userId);
   }
 
   /** Fait sortir le joueur de son salon. Renvoie le salon quitté, s'il y en avait un. */
@@ -55,9 +56,9 @@ export class RoomManager {
     return room;
   }
 
-  private enter(playerId: string, room: Room, name: string): JoinRoomResult {
+  private enter(playerId: string, room: Room, name: string, userId: number | null): JoinRoomResult {
     this.leave(playerId);
-    if (!room.addPlayer(playerId, name)) {
+    if (!room.addPlayer(playerId, name, userId)) {
       if (room.playerCount === 0) this.rooms.delete(room.code);
       return { ok: false, error: "Salon plein." };
     }
