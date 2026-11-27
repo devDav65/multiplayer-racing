@@ -28,7 +28,7 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <Ground />
         <TrackMesh track={track} />
-        <NetworkedGame speedRef={speedRef} />
+        <NetworkedGame track={track} speedRef={speedRef} />
       </Canvas>
       <div className="hud">
         <div ref={speedRef}>0 km/h</div>

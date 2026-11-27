@@ -22,6 +22,11 @@ export function pushSnapshot(snapshot: Snapshot, receivedAt: number = performanc
   if (buffer.length > MAX_BUFFERED) buffer.shift();
 }
 
+/** Le snapshot le plus récent reçu, ou null. Sert à la prédiction (pas d'interpolation). */
+export function latestSnapshot(): Snapshot | null {
+  return buffer[buffer.length - 1]?.snapshot ?? null;
+}
+
 export function clearSnapshots(): void {
   buffer.length = 0;
 }
