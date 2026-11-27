@@ -166,3 +166,19 @@ describe("Predictor : réconciliation", () => {
     expect(Object.keys(p.state ?? {}).sort()).toEqual(["heading", "vx", "vz", "x", "z"]);
   });
 });
+
+describe("Predictor : voiture bloquée", () => {
+  it("garde les inputs en attente sans bouger, puis repart quand on la débloque", () => {
+    const p = new Predictor(track);
+    p.reconcile(spawn, 0);
+    p.setFrozen(true);
+    for (const i of range(1, 30)) p.applyInput(i);
+    expect(p.state).toEqual(spawn);
+    expect(p.pendingCount).toBe(30);
+    // Le serveur confirme les 30 inputs (bloqués lui aussi) : aucune correction.
+    expect(p.reconcile(spawn, 30)?.distance).toBe(0);
+    p.setFrozen(false);
+    p.applyInput(input(31));
+    expect(p.state).toEqual(simulate(spawn, [input(31)]));
+  });
+});

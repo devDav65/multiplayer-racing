@@ -45,14 +45,14 @@ function lerpAngle(a: number, b: number, t: number): number {
 }
 
 function lerpCar(a: CarSnapshot, b: CarSnapshot, t: number): CarSnapshot {
+  // Les champs non interpolables (tour, position, numéros...) viennent du plus récent.
   return {
-    id: b.id,
+    ...b,
     x: lerp(a.x, b.x, t),
     z: lerp(a.z, b.z, t),
     heading: lerpAngle(a.heading, b.heading, t),
     vx: lerp(a.vx, b.vx, t),
     vz: lerp(a.vz, b.vz, t),
-    lastInputSeq: b.lastInputSeq,
   };
 }
 

@@ -1,9 +1,12 @@
-import { buildTrack, CIRCUIT_1, SIM_TICK_RATE } from "@racing/shared";
+import { buildTrack, CIRCUIT_1 } from "@racing/shared";
 import { Canvas } from "@react-three/fiber";
 import { useRef } from "react";
 import { NetworkedGame } from "./game/NetworkedGame";
 import { TrackMesh } from "./game/tracks/TrackMesh";
 import { useConnection } from "./hooks/useConnection";
+import { useGameStore } from "./store/gameStore";
+import { HomeScreen } from "./ui/HomeScreen";
+import { RoomOverlay } from "./ui/RoomOverlay";
 
 // Construit une seule fois, au chargement du module (pas à chaque rendu).
 const track = buildTrack(CIRCUIT_1);
@@ -17,8 +20,9 @@ function Ground() {
   );
 }
 
-export default function App() {
-  const { connected, playerId, pingMs } = useConnection();
+/** La course : scène 3D, HUD et surcouche du salon. Monté seulement dans un salon. */
+function GameScreen() {
+  const pingMs = useGameStore((s) => s.pingMs);
   const speedRef = useRef<HTMLDivElement>(null);
   const correctionRef = useRef<HTMLDivElement>(null);
 
@@ -32,13 +36,21 @@ export default function App() {
         <NetworkedGame track={track} speedRef={speedRef} correctionRef={correctionRef} />
       </Canvas>
       <div className="hud">
-        <div ref={speedRef}>0 km/h</div>
-        <div>Simulation : {SIM_TICK_RATE} Hz</div>
-        <div>Serveur : {connected ? "connecté" : "déconnecté"}</div>
-        <div>Joueur : {playerId ?? "-"}</div>
-        <div>Ping : {pingMs !== null ? `${pingMs} ms` : "-"}</div>
-        <div ref={correctionRef}>Correction : -</div>
+        <div ref={speedRef} className="speed">
+          0 km/h
+        </div>
+        <div className="debug">
+          <div>Ping : {pingMs !== null ? `${pingMs} ms` : "-"}</div>
+          <div ref={correctionRef}>Correction : -</div>
+        </div>
       </div>
+      <RoomOverlay />
     </>
   );
+}
+
+export default function App() {
+  useConnection();
+  const inRoom = useGameStore((s) => s.room !== null);
+  return inRoom ? <GameScreen /> : <HomeScreen />;
 }

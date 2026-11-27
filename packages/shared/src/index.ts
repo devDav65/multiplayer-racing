@@ -8,5 +8,6 @@ export * from "./tracks/circuit1";
 export * from "./tracks/track";
 export * from "./types/events";
 export * from "./types/input";
+export * from "./types/race";
 export * from "./types/snapshot";
 export * from "./utils";

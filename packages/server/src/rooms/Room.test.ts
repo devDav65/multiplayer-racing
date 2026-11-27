@@ -8,9 +8,13 @@ import {
   stepCarOnTrack,
 } from "@racing/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Room } from "./Room";
+import { Room, type RoomOptions } from "./Room";
 
 const track = buildTrack(CIRCUIT_1);
+
+function makeRoom(options: Partial<RoomOptions> = {}): Room {
+  return new Room({ code: "TEST", track, onSnapshot: () => {}, onRoomState: () => {}, ...options });
+}
 
 function gas(seq: number): PlayerInput {
   return { seq, throttle: 1, steer: 0, brake: 0, handbrake: false };
@@ -33,18 +37,19 @@ afterEach(() => {
 
 describe("Room : joueurs", () => {
   it("refuse un doublon et un salon plein", () => {
-    const room = new Room(track, () => {});
-    expect(room.addPlayer("a")).toBe(true);
-    expect(room.addPlayer("a")).toBe(false);
-    for (let i = 1; i < MAX_PLAYERS_PER_ROOM; i++) expect(room.addPlayer(`p${i}`)).toBe(true);
-    expect(room.addPlayer("de-trop")).toBe(false);
+    const room = makeRoom();
+    expect(room.addPlayer("a", "pilote")).toBe(true);
+    expect(room.addPlayer("a", "pilote")).toBe(false);
+    for (let i = 1; i < MAX_PLAYERS_PER_ROOM; i++)
+      expect(room.addPlayer(`p${i}`, "pilote")).toBe(true);
+    expect(room.addPlayer("de-trop", "pilote")).toBe(false);
     expect(room.playerCount).toBe(MAX_PLAYERS_PER_ROOM);
   });
 
   it("place chaque joueur sur un emplacement de grille différent", () => {
-    const room = new Room(track, () => {});
+    const room = makeRoom();
     const ids = ["a", "b", "c", "d", "e", "f"];
-    for (const id of ids) room.addPlayer(id);
+    for (const id of ids) room.addPlayer(id, "pilote");
     const positions = ids.map((id) => {
       const { x, z } = stateOf(room, id).car;
       return `${x.toFixed(2)},${z.toFixed(2)}`;
@@ -53,28 +58,28 @@ describe("Room : joueurs", () => {
   });
 
   it("réutilise l'emplacement d'un joueur parti", () => {
-    const room = new Room(track, () => {});
-    room.addPlayer("a");
-    room.addPlayer("b");
+    const room = makeRoom();
+    room.addPlayer("a", "pilote");
+    room.addPlayer("b", "pilote");
     const b = stateOf(room, "b").car;
     room.removePlayer("b");
-    room.addPlayer("c");
+    room.addPlayer("c", "pilote");
     expect(stateOf(room, "c").car).toEqual(b);
   });
 });
 
 describe("Room : un input = un pas", () => {
   it("ne bouge pas la voiture sans input", () => {
-    const room = new Room(track, () => {});
-    room.addPlayer("a");
+    const room = makeRoom();
+    room.addPlayer("a", "pilote");
     const before = stateOf(room, "a").car;
     for (let i = 0; i < 30; i++) room.step();
     expect(stateOf(room, "a").car).toEqual(before);
   });
 
   it("donne exactement le même état que stepCarOnTrack appliqué à chaque input", () => {
-    const room = new Room(track, () => {});
-    room.addPlayer("a");
+    const room = makeRoom();
+    room.addPlayer("a", "pilote");
     let expected: CarState = stateOf(room, "a").car;
     for (let seq = 1; seq <= 90; seq++) {
       const input = { ...gas(seq), steer: Math.sin(seq / 10) };
@@ -88,8 +93,8 @@ describe("Room : un input = un pas", () => {
   });
 
   it("rattrape au plus 3 inputs par pas, dans la limite du budget de 6", () => {
-    const room = new Room(track, () => {});
-    room.addPlayer("a");
+    const room = makeRoom();
+    room.addPlayer("a", "pilote");
     for (let seq = 1; seq <= 8; seq++) room.applyInput("a", gas(seq));
     room.step(); // budget 6 → 3 exécutés
     expect(stateOf(room, "a").lastInputSeq).toBe(3);
@@ -100,8 +105,8 @@ describe("Room : un input = un pas", () => {
   });
 
   it("ne laisse pas un client qui inonde aller plus vite qu'un client honnête", () => {
-    const room = new Room(track, () => {});
-    room.addPlayer("a");
+    const room = makeRoom();
+    room.addPlayer("a", "pilote");
     const start = stateOf(room, "a").car;
     const steps = 120; // 2 s : on reste dans la ligne droite de départ
     let seq = 0;
@@ -118,8 +123,8 @@ describe("Room : un input = un pas", () => {
   });
 
   it("garde au plus 8 inputs en file, en jetant les plus anciens", () => {
-    const room = new Room(track, () => {});
-    room.addPlayer("a");
+    const room = makeRoom();
+    room.addPlayer("a", "pilote");
     for (let seq = 1; seq <= 20; seq++) room.applyInput("a", gas(seq));
     const executed: number[] = [];
     for (let i = 0; i < 10; i++) {
@@ -133,8 +138,8 @@ describe("Room : un input = un pas", () => {
 
 describe("Room : numéros d'input", () => {
   it("ignore un input en double ou plus ancien que le dernier reçu", () => {
-    const room = new Room(track, () => {});
-    room.addPlayer("a");
+    const room = makeRoom();
+    room.addPlayer("a", "pilote");
     room.applyInput("a", gas(5));
     room.applyInput("a", gas(5)); // doublon
     room.applyInput("a", gas(3)); // rejoué / en retard
@@ -151,9 +156,9 @@ describe("Room : numéros d'input", () => {
 describe("Room : snapshots", () => {
   it("envoie un snapshot tous les 3 pas avec toutes les voitures", () => {
     const snapshots: Snapshot[] = [];
-    const room = new Room(track, (s) => snapshots.push(s));
-    room.addPlayer("a");
-    room.addPlayer("b");
+    const room = makeRoom({ onSnapshot: (s) => snapshots.push(s) });
+    room.addPlayer("a", "pilote");
+    room.addPlayer("b", "pilote");
     for (let i = 0; i < 9; i++) room.step();
     expect(snapshots.map((s) => s.tick)).toEqual([3, 6, 9]);
     expect(snapshots[0]?.cars.map((c) => c.id).sort()).toEqual(["a", "b"]);

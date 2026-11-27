@@ -70,6 +70,11 @@ export class Predictor {
   private lastAckedSeq = 0;
   /** Décalage visuel restant à résorber (affiché = simulé + décalage). */
   private offset = { x: 0, z: 0, heading: 0 };
+  /**
+   * Voiture bloquée (décompte, spectateur) : même règle que le serveur (isCarFrozen).
+   * Les inputs sont gardés en attente mais ne font pas bouger la voiture.
+   */
+  private frozen = false;
 
   constructor(track: Track) {
     this.track = track;
@@ -88,13 +93,22 @@ export class Predictor {
     return Math.hypot(this.offset.x, this.offset.z);
   }
 
+  setFrozen(frozen: boolean): void {
+    this.frozen = frozen;
+  }
+
+  /** Un pas de simulation, sauf si la voiture est bloquée. */
+  private simulate(state: CarState, input: PlayerInput): CarState {
+    return this.frozen ? state : stepCarOnTrack(state, input, this.track);
+  }
+
   /** Un input vient d'être envoyé : on le mémorise et on l'applique tout de suite. */
   applyInput(input: PlayerInput): void {
     this.pending.push(input);
     if (this.pending.length > MAX_PENDING_INPUTS) this.pending.shift();
     if (this.current) {
       this.previous = this.current;
-      this.current = stepCarOnTrack(this.current, input, this.track);
+      this.current = this.simulate(this.current, input);
     }
   }
 
@@ -116,7 +130,7 @@ export class Predictor {
     let previous = state;
     for (const input of this.pending) {
       previous = state;
-      state = stepCarOnTrack(state, input, this.track);
+      state = this.simulate(state, input);
     }
     this.current = state;
     this.previous = previous;
@@ -171,6 +185,7 @@ export class Predictor {
     this.previous = null;
     this.pending.length = 0;
     this.lastAckedSeq = 0;
+    this.frozen = false;
     this.offset = { x: 0, z: 0, heading: 0 };
   }
 

@@ -1,4 +1,4 @@
-import { type CarState, SIM_DT, type Snapshot, type Track } from "@racing/shared";
+import { type CarState, isCarFrozen, SIM_DT, type Snapshot, type Track } from "@racing/shared";
 import { useFrame } from "@react-three/fiber";
 import { type RefObject, useMemo, useRef, useState } from "react";
 import type { DirectionalLight, Group } from "three";
@@ -59,6 +59,9 @@ export function NetworkedGame({ track, speedRef, correctionRef }: NetworkedGameP
     if (snapshot && snapshot !== reconciledSnapshot.current) {
       reconciledSnapshot.current = snapshot;
       const official = snapshot.cars.find((c) => c.id === socket.id);
+      // Même règle que le serveur : pendant le décompte (ou en spectateur), la voiture
+      // ne bouge pas. À régler AVANT le rejeu, qui doit suivre la même règle.
+      predictor.setFrozen(isCarFrozen(snapshot.race.phase, official?.spectator ?? false));
       const correction = official && predictor.reconcile(official, official.lastInputSeq);
       if (correction && correctionRef.current) {
         const cm = Math.round(correction.distance * 100);
@@ -95,27 +98,37 @@ export function NetworkedGame({ track, speedRef, correctionRef }: NetworkedGameP
 
     // 5. MA voiture vient de la prédiction (pas de retard), entre deux pas de simulation.
     //    Tant que la prédiction n'a pas démarré, on se rabat sur la version interpolée.
+    //    Les spectateurs sont cachés.
     const predicted = predictor.renderState(inputAccumulator.current / SIM_DT);
-    let mine: CarState | undefined = predicted ?? undefined;
+    let mine: CarState | undefined;
+    let meSpectating = false;
+    let leader: CarState | undefined;
     for (const car of cars) {
       const isMine = car.id === socket.id;
-      if (isMine && !mine) mine = car;
-      const shown = isMine && mine ? mine : car;
+      const shown = isMine ? (predicted ?? car) : car;
+      if (isMine) {
+        mine = shown;
+        meSpectating = car.spectator;
+      }
+      if (!car.spectator && (car.rank === 1 || !leader)) leader = shown;
       const group = groups.current.get(car.id);
       if (group) {
+        group.visible = !car.spectator;
         group.position.set(shown.x, 0, shown.z);
         group.rotation.y = shown.heading;
       }
     }
-    if (!mine) return;
+    // Spectateur : la caméra suit le premier de la course.
+    const followed = meSpectating ? leader : mine;
+    if (!followed) return;
 
-    // 6. Caméra derrière MA voiture.
-    const forwardX = -Math.sin(mine.heading);
-    const forwardZ = -Math.cos(mine.heading);
+    // 6. Caméra derrière la voiture suivie.
+    const forwardX = -Math.sin(followed.heading);
+    const forwardZ = -Math.cos(followed.heading);
     cameraTarget.current.set(
-      mine.x - forwardX * CAMERA_DISTANCE,
+      followed.x - forwardX * CAMERA_DISTANCE,
       CAMERA_HEIGHT,
-      mine.z - forwardZ * CAMERA_DISTANCE,
+      followed.z - forwardZ * CAMERA_DISTANCE,
     );
     if (!cameraReady.current) {
       camera.position.copy(cameraTarget.current);
@@ -123,18 +136,18 @@ export function NetworkedGame({ track, speedRef, correctionRef }: NetworkedGameP
     } else {
       camera.position.lerp(cameraTarget.current, 1 - Math.exp(-CAMERA_STIFFNESS * delta));
     }
-    camera.lookAt(mine.x, 1, mine.z);
+    camera.lookAt(followed.x, 1, followed.z);
 
-    // 7. Le soleil suit ma voiture.
+    // 7. Le soleil suit la voiture suivie (les ombres restent visibles).
     const sun = sunRef.current;
     if (sun) {
-      sun.position.set(mine.x + 10, 15, mine.z + 5);
-      sun.target.position.set(mine.x, 0, mine.z);
+      sun.position.set(followed.x + 10, 15, followed.z + 5);
+      sun.target.position.set(followed.x, 0, followed.z);
       sun.target.updateMatrixWorld();
     }
 
     // 8. Vitesse.
-    const kmh = Math.round(Math.hypot(mine.vx, mine.vz) * MS_TO_KMH);
+    const kmh = Math.round(Math.hypot(followed.vx, followed.vz) * MS_TO_KMH);
     if (speedRef.current && kmh !== lastSpeed.current) {
       speedRef.current.textContent = `${kmh} km/h`;
       lastSpeed.current = kmh;

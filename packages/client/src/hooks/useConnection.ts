@@ -1,37 +1,45 @@
-import { useEffect, useState } from "react";
+import type { RoomState } from "@racing/shared";
+import { useEffect } from "react";
+import { isCurrentRoom } from "../network/roomApi";
 import { socket } from "../network/socket";
-
-export interface ConnectionState {
-  connected: boolean;
-  playerId: string | null;
-  pingMs: number | null;
-}
+import { useGameStore } from "../store/gameStore";
 
 const PING_INTERVAL_MS = 2000;
 
-export function useConnection(): ConnectionState {
-  const [state, setState] = useState<ConnectionState>({
-    connected: false,
-    playerId: null,
-    pingMs: null,
-  });
-
+/**
+ * Connexion au serveur, ping et état du salon, recopiés dans le store.
+ * À monter une seule fois, en haut de l'application.
+ */
+export function useConnection(): void {
   useEffect(() => {
-    const onConnect = () => setState((s) => ({ ...s, connected: true }));
-    const onDisconnect = () => setState({ connected: false, playerId: null, pingMs: null });
-    const onWelcome = ({ playerId }: { playerId: string }) => setState((s) => ({ ...s, playerId }));
+    const onConnect = () => useGameStore.setState({ connected: true });
+    // Déconnecté = le serveur nous a retirés du salon : retour à l'accueil.
+    const onDisconnect = () =>
+      useGameStore.setState({
+        connected: false,
+        playerId: null,
+        pingMs: null,
+        room: null,
+        race: null,
+        me: null,
+      });
+    const onWelcome = ({ playerId }: { playerId: string }) => useGameStore.setState({ playerId });
+    const onRoomState = (state: RoomState) => {
+      // Ignore un état arrivé après qu'on a quitté ce salon.
+      if (isCurrentRoom(state.code)) useGameStore.setState({ room: state });
+    };
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("welcome", onWelcome);
+    socket.on("roomState", onRoomState);
     socket.connect();
 
     const interval = setInterval(() => {
       if (!socket.connected) return;
       const start = performance.now();
       socket.emit("ping", () => {
-        const rtt = Math.round(performance.now() - start);
-        setState((s) => ({ ...s, pingMs: rtt }));
+        useGameStore.setState({ pingMs: Math.round(performance.now() - start) });
       });
     }, PING_INTERVAL_MS);
 
@@ -40,9 +48,8 @@ export function useConnection(): ConnectionState {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("welcome", onWelcome);
+      socket.off("roomState", onRoomState);
       socket.disconnect();
     };
   }, []);
-
-  return state;
 }
