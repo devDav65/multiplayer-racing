@@ -8,17 +8,28 @@ import {
 } from "@racing/shared";
 import express from "express";
 import { Server } from "socket.io";
+import { loadConfig, loadEnvFile } from "./config";
+import { runMigrations } from "./db/migrate";
+import { createPool } from "./db/pool";
 import { playerInputSchema } from "./network/inputSchema";
 import { RateLimiter } from "./network/RateLimiter";
 import { createRoomSchema, joinRoomSchema } from "./network/roomSchemas";
 import { Room } from "./rooms/Room";
 import { RoomManager } from "./rooms/RoomManager";
 
-const PORT = Number(process.env.PORT ?? 3001);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
-/** Nombre de tours (1 à 10), surtout utile en développement pour des courses courtes. */
-const lapsEnv = Number(process.env.RACE_LAPS);
-const LAPS = Number.isInteger(lapsEnv) && lapsEnv >= 1 && lapsEnv <= 10 ? lapsEnv : undefined;
+loadEnvFile();
+const config = loadConfig();
+
+// Base de données optionnelle : sans elle, le jeu marche en mode invité.
+const pool = config.DATABASE_URL ? createPool(config.DATABASE_URL) : null;
+if (pool) {
+  const applied = await runMigrations(pool);
+  console.log(
+    `[db] connectée${applied.length ? `, migrations appliquées : ${applied.join(", ")}` : ""}`,
+  );
+} else {
+  console.warn("[db] DATABASE_URL absent : comptes et statistiques désactivés");
+}
 
 /** Inputs : 60/s attendus, rafales tolérées (gigue réseau). Au-delà : ignorés. */
 const INPUT_BURST = 30;
@@ -36,7 +47,7 @@ app.get("/health", (_req, res) => {
 const httpServer = createServer(app);
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-  cors: { origin: CLIENT_ORIGIN },
+  cors: { origin: config.CLIENT_ORIGIN },
   // Nos messages font quelques centaines d'octets : inutile d'accepter 1 Mo (défaut).
   maxHttpBufferSize: 16 * 1024,
 });
@@ -51,7 +62,7 @@ const rooms = new RoomManager(
     new Room({
       code,
       track,
-      laps: LAPS,
+      laps: config.RACE_LAPS,
       // volatile : si un client est en retard, ce snapshot est abandonné plutôt qu'empilé.
       onSnapshot: (snapshot) => io.to(channel(code)).volatile.emit("snapshot", snapshot),
       onRoomState: (state) => io.to(channel(code)).emit("roomState", state),
@@ -123,6 +134,6 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT}`);
+httpServer.listen(config.PORT, () => {
+  console.log(`Serveur démarré sur http://localhost:${config.PORT}`);
 });

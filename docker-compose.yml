@@ -1,0 +1,26 @@
+# Développement : base PostgreSQL. Lancer avec `docker compose up -d db`.
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-racing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-racing}
+      POSTGRES_DB: ${POSTGRES_DB:-racing}
+    # 127.0.0.1 : la base n'est joignable que depuis cette machine, pas depuis le réseau.
+    # 5433 : évite un conflit avec un PostgreSQL installé localement sur 5432.
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      # Depuis PostgreSQL 18, l'image attend le volume sur /var/lib/postgresql.
+      - db-data:/var/lib/postgresql
+      # Scripts exécutés une seule fois, à la création du volume (base de test).
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:
