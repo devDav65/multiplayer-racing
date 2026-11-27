@@ -1,5 +1,6 @@
 import type { RaceInfo, RoomState } from "@racing/shared";
 import { create } from "zustand";
+import type { Account } from "../network/accountApi";
 
 /** Ce que le HUD affiche de MA voiture. Mis à jour seulement quand ça change. */
 export interface MyRaceStatus {
@@ -24,6 +25,10 @@ interface GameStore {
   me: MyRaceStatus | null;
   /** Nombre de coureurs (pour « position 3/8 »). */
   racerCount: number;
+  /** Compte connecté, ou null (invité). */
+  account: Account | null;
+  /** false si le serveur tourne sans base de données. */
+  accountsEnabled: boolean;
 }
 
 export const useGameStore = create<GameStore>(() => ({
@@ -34,6 +39,8 @@ export const useGameStore = create<GameStore>(() => ({
   race: null,
   me: null,
   racerCount: 0,
+  account: null,
+  accountsEnabled: true,
 }));
 
 const sameRace = (a: RaceInfo | null, b: RaceInfo | null) =>

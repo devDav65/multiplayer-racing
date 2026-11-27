@@ -239,3 +239,70 @@ body,
   pointer-events: none;
   user-select: none;
 }
+
+/* ---------- Compte et profil ---------- */
+
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.account .row button {
+  flex: 1;
+}
+
+.panel input:disabled {
+  opacity: 0.7;
+}
+
+.profile {
+  min-width: 380px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.profile h3 {
+  margin: 8px 0 0;
+  font-size: 15px;
+}
+
+.profile table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+
+.profile table td {
+  padding: 3px 0;
+}
+
+.profile table td + td {
+  padding-left: 12px;
+}
+
+.profile .time {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+
+.stats div {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stats strong {
+  font-size: 22px;
+}

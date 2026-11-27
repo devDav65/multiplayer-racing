@@ -1,5 +1,6 @@
 import type { RoomState } from "@racing/shared";
 import { useEffect } from "react";
+import { loadAccount } from "../network/accountApi";
 import { isCurrentRoom } from "../network/roomApi";
 import { socket } from "../network/socket";
 import { useGameStore } from "../store/gameStore";
@@ -34,6 +35,7 @@ export function useConnection(): void {
     socket.on("welcome", onWelcome);
     socket.on("roomState", onRoomState);
     socket.connect();
+    void loadAccount();
 
     const interval = setInterval(() => {
       if (!socket.connected) return;

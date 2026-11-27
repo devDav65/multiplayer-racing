@@ -64,7 +64,13 @@ describe.skipIf(!TEST_DATABASE_URL)("RaceRepository (PostgreSQL)", () => {
         { trackId: "circuit-1", laps: 3, timeMs: 79_500 },
       ],
     });
-    expect(await races.getUserStats("Bob")).toMatchObject({ races: 2, wins: 1, finished: 1 });
+    // Bob : 3e mais DNF dans la 1re course (pas un podium), vainqueur de la 2e.
+    expect(await races.getUserStats("Bob")).toMatchObject({
+      races: 2,
+      wins: 1,
+      podiums: 1,
+      finished: 1,
+    });
     expect(await races.getUserStats("personne")).toBeNull();
   });
 

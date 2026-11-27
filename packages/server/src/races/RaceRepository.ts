@@ -84,6 +84,7 @@ export class RaceRepository {
     if (!row) return null;
 
     // COUNT(*) FILTER : plusieurs compteurs en un seul passage sur les résultats.
+    // Victoire et podium exigent d'avoir fini : une 2e place DNF sur 2 n'est pas un podium.
     const totals = await this.pool.query<{
       races: string;
       wins: string;
@@ -91,8 +92,8 @@ export class RaceRepository {
       finished: string;
     }>(
       `SELECT count(*)                                  AS races,
-              count(*) FILTER (WHERE rank = 1)          AS wins,
-              count(*) FILTER (WHERE rank <= 3)         AS podiums,
+              count(*) FILTER (WHERE rank = 1 AND time_ms IS NOT NULL)  AS wins,
+              count(*) FILTER (WHERE rank <= 3 AND time_ms IS NOT NULL) AS podiums,
               count(*) FILTER (WHERE time_ms IS NOT NULL) AS finished
        FROM race_results WHERE user_id = $1`,
       [row.id],
