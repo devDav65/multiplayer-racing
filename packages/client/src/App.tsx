@@ -20,6 +20,7 @@ function Ground() {
 export default function App() {
   const { connected, playerId, pingMs } = useConnection();
   const speedRef = useRef<HTMLDivElement>(null);
+  const correctionRef = useRef<HTMLDivElement>(null);
 
   return (
     <>
@@ -28,7 +29,7 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <Ground />
         <TrackMesh track={track} />
-        <NetworkedGame track={track} speedRef={speedRef} />
+        <NetworkedGame track={track} speedRef={speedRef} correctionRef={correctionRef} />
       </Canvas>
       <div className="hud">
         <div ref={speedRef}>0 km/h</div>
@@ -36,6 +37,7 @@ export default function App() {
         <div>Serveur : {connected ? "connecté" : "déconnecté"}</div>
         <div>Joueur : {playerId ?? "-"}</div>
         <div>Ping : {pingMs !== null ? `${pingMs} ms` : "-"}</div>
+        <div ref={correctionRef}>Correction : -</div>
       </div>
     </>
   );

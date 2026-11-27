@@ -20,7 +20,10 @@ interface Player {
   queue: PlayerInput[];
   /** Nombre d'inputs que ce joueur a encore le droit d'exécuter (anti-accélération). */
   budget: number;
+  /** Dernier input EXÉCUTÉ : renvoyé dans les snapshots pour la réconciliation. */
   lastInputSeq: number;
+  /** Dernier input REÇU (mis en file). Les numéros doivent strictement augmenter. */
+  lastReceivedSeq: number;
 }
 
 const TICKS_PER_SNAPSHOT = SIM_TICK_RATE / SNAPSHOT_RATE;
@@ -85,6 +88,7 @@ export class Room {
       queue: [],
       budget: MAX_INPUT_BUDGET,
       lastInputSeq: 0,
+      lastReceivedSeq: 0,
     });
     this.start();
     return true;
@@ -105,6 +109,10 @@ export class Room {
   applyInput(id: string, input: PlayerInput): void {
     const player = this.players.get(id);
     if (!player) return;
+    // Doublon ou input rejoué : on l'ignore. Sinon lastInputSeq pourrait reculer et la
+    // réconciliation du client rejouerait des inputs déjà comptés.
+    if (input.seq <= player.lastReceivedSeq) return;
+    player.lastReceivedSeq = input.seq;
     player.queue.push(input);
     // File trop longue : on garde les plus récents pour ne pas accumuler de retard.
     if (player.queue.length > MAX_QUEUED_INPUTS) player.queue.shift();

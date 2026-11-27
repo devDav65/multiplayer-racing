@@ -131,6 +131,23 @@ describe("Room : un input = un pas", () => {
   });
 });
 
+describe("Room : numéros d'input", () => {
+  it("ignore un input en double ou plus ancien que le dernier reçu", () => {
+    const room = new Room(track, () => {});
+    room.addPlayer("a");
+    room.applyInput("a", gas(5));
+    room.applyInput("a", gas(5)); // doublon
+    room.applyInput("a", gas(3)); // rejoué / en retard
+    room.applyInput("a", gas(6));
+    let expected: CarState = stateOf(room, "a").car;
+    for (const seq of [5, 6]) expected = stepCarOnTrack(expected, gas(seq), track);
+    room.step();
+    room.step();
+    expect(stateOf(room, "a").lastInputSeq).toBe(6);
+    expect(stateOf(room, "a").car).toEqual(expected);
+  });
+});
+
 describe("Room : snapshots", () => {
   it("envoie un snapshot tous les 3 pas avec toutes les voitures", () => {
     const snapshots: Snapshot[] = [];

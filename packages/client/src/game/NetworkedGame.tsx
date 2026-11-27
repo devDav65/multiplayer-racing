@@ -1,4 +1,4 @@
-import { type CarState, SIM_DT, type Track } from "@racing/shared";
+import { type CarState, SIM_DT, type Snapshot, type Track } from "@racing/shared";
 import { useFrame } from "@react-three/fiber";
 import { type RefObject, useMemo, useRef, useState } from "react";
 import type { DirectionalLight, Group } from "three";
@@ -21,9 +21,11 @@ const OTHER_COLOR = "#2a6fdb";
 interface NetworkedGameProps {
   track: Track;
   speedRef: RefObject<HTMLDivElement | null>;
+  /** Élément HTML où afficher la dernière correction de la réconciliation (debug). */
+  correctionRef: RefObject<HTMLDivElement | null>;
 }
 
-export function NetworkedGame({ track, speedRef }: NetworkedGameProps) {
+export function NetworkedGame({ track, speedRef, correctionRef }: NetworkedGameProps) {
   const readControls = useKeyboardControls();
   useGameNetwork();
   // La LISTE des voitures change rarement (arrivée/départ d'un joueur) : state React.
@@ -39,6 +41,9 @@ export function NetworkedGame({ track, speedRef }: NetworkedGameProps) {
   const predictor = useMemo(() => new Predictor(track), [track]);
   /** Identifiant du joueur dont le Predictor suit la voiture (change à chaque reconnexion). */
   const predictedId = useRef<string | undefined>(undefined);
+  /** Dernier snapshot déjà réconcilié (on ne rejoue pas deux fois le même). */
+  const reconciledSnapshot = useRef<Snapshot | null>(null);
+  const lastCorrectionCm = useRef(-1);
 
   useFrame(({ camera }, delta) => {
     // 0. Nouvelle connexion = nouvelle voiture côté serveur : on repart de zéro.
@@ -47,11 +52,23 @@ export function NetworkedGame({ track, speedRef }: NetworkedGameProps) {
       predictedId.current = socket.id;
     }
 
-    // 1. Point de départ de la prédiction : le premier état officiel de ma voiture.
-    if (!predictor.state) {
-      const official = latestSnapshot()?.cars.find((c) => c.id === socket.id);
-      if (official) predictor.resetFromServer(official, official.lastInputSeq);
+    // 1. Réconciliation : à chaque NOUVEAU snapshot, on repart de l'état officiel de ma
+    //    voiture et on rejoue mes inputs pas encore exécutés par le serveur.
+    //    Le premier snapshot sert aussi de point de départ à la prédiction.
+    const snapshot = latestSnapshot();
+    if (snapshot && snapshot !== reconciledSnapshot.current) {
+      reconciledSnapshot.current = snapshot;
+      const official = snapshot.cars.find((c) => c.id === socket.id);
+      const correction = official && predictor.reconcile(official, official.lastInputSeq);
+      if (correction && correctionRef.current) {
+        const cm = Math.round(correction.distance * 100);
+        if (cm !== lastCorrectionCm.current) {
+          correctionRef.current.textContent = `Correction : ${cm} cm${correction.snapped ? " (recalé)" : ""}`;
+          lastCorrectionCm.current = cm;
+        }
+      }
     }
+    predictor.decayOffset(delta);
 
     // 2. Un input par pas de simulation : même accumulateur à pas fixe que le serveur.
     //    On envoie même quand aucune touche n'est enfoncée (touches à zéro) : le serveur
