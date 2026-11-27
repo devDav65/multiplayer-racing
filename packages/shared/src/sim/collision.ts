@@ -1,6 +1,6 @@
 import { SIM_DT } from "../constants";
 import { nearestOnTrack, type Track } from "../tracks/track";
-import { stepCar, type CarControls, type CarState } from "./car";
+import { type CarControls, type CarState, stepCar } from "./car";
 
 export const COLLISION_PARAMS = {
   /** Positions des cercles le long de l'axe de la voiture (m). Positif = vers l'avant. */

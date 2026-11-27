@@ -9,4 +9,3 @@ export const SNAPSHOT_RATE = 20;
 
 /** Nombre maximum de joueurs dans un salon. */
 export const MAX_PLAYERS_PER_ROOM = 20;
-

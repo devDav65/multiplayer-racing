@@ -1,12 +1,12 @@
 import { createServer } from "node:http";
-import express from "express";
-import { Server } from "socket.io";
 import {
-  CIRCUIT_1,
   buildTrack,
+  CIRCUIT_1,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from "@racing/shared";
+import express from "express";
+import { Server } from "socket.io";
 import { playerInputSchema } from "./network/inputSchema";
 import { Room } from "./rooms/Room";
 

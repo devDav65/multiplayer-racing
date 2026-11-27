@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
 import type { CarControls } from "@racing/shared";
+import { useCallback, useEffect, useRef } from "react";
 
 // `event.code` désigne la touche PHYSIQUE, pas la lettre imprimée dessus.
 // KeyW est donc « Z » sur un clavier AZERTY et « W » sur un QWERTY : ZQSD et WASD

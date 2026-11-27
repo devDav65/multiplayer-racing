@@ -1,7 +1,10 @@
+import type { Track } from "@racing/shared";
 import { useMemo } from "react";
 import { DoubleSide } from "three";
-import type { Track } from "@racing/shared";
 import { buildRoadGeometry, buildWallGeometries } from "./trackGeometry";
+
+/** buildWallGeometries renvoie toujours [mur côté +normale, mur côté -normale] : des clés stables. */
+const WALL_KEYS = ["wall-plus", "wall-minus"] as const;
 
 interface TrackMeshProps {
   track: Track;
@@ -19,7 +22,7 @@ export function TrackMesh({ track }: TrackMeshProps) {
         <meshStandardMaterial color="#3b3b44" side={DoubleSide} />
       </mesh>
       {walls.map((geometry, i) => (
-        <mesh key={i} geometry={geometry} castShadow receiveShadow>
+        <mesh key={WALL_KEYS[i]} geometry={geometry} castShadow receiveShadow>
           <meshStandardMaterial color="#d9d9e0" side={DoubleSide} />
         </mesh>
       ))}

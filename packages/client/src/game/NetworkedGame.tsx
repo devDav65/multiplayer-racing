@@ -1,11 +1,11 @@
-import { useRef, useState, type RefObject } from "react";
+import { type CarSnapshot, SIM_DT } from "@racing/shared";
 import { useFrame } from "@react-three/fiber";
-import { Vector3 } from "three";
+import { type RefObject, useRef, useState } from "react";
 import type { DirectionalLight, Group } from "three";
-import { SIM_DT, type CarSnapshot } from "@racing/shared";
-import { sendInput } from "../network/inputStream";
+import { Vector3 } from "three";
 import { useGameNetwork } from "../hooks/useGameNetwork";
 import { useKeyboardControls } from "../hooks/useKeyboardControls";
+import { sendInput } from "../network/inputStream";
 import { INTERPOLATION_DELAY_MS, sampleCars } from "../network/snapshotBuffer";
 import { socket } from "../network/socket";
 import { CarModel } from "./vehicles/CarModel";

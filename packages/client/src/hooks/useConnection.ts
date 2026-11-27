@@ -18,10 +18,8 @@ export function useConnection(): ConnectionState {
 
   useEffect(() => {
     const onConnect = () => setState((s) => ({ ...s, connected: true }));
-    const onDisconnect = () =>
-      setState({ connected: false, playerId: null, pingMs: null });
-    const onWelcome = ({ playerId }: { playerId: string }) =>
-      setState((s) => ({ ...s, playerId }));
+    const onDisconnect = () => setState({ connected: false, playerId: null, pingMs: null });
+    const onWelcome = ({ playerId }: { playerId: string }) => setState((s) => ({ ...s, playerId }));
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);

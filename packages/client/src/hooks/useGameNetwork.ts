@@ -1,7 +1,7 @@
-import { useEffect } from "react";
 import type { Snapshot } from "@racing/shared";
-import { socket } from "../network/socket";
+import { useEffect } from "react";
 import { clearSnapshots, pushSnapshot } from "../network/snapshotBuffer";
+import { socket } from "../network/socket";
 
 /** Mémorise les snapshots reçus du serveur. */
 export function useGameNetwork(): void {

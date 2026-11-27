@@ -1,5 +1,5 @@
+import { type Track, wrapAt } from "@racing/shared";
 import { BufferGeometry, Float32BufferAttribute } from "three";
-import { wrapAt, type Track } from "@racing/shared";
 
 type Vec3 = readonly [number, number, number];
 
