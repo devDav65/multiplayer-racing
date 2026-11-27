@@ -223,3 +223,19 @@ body,
   text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
+
+.countdown.go {
+  color: #7bff9a;
+}
+
+/* Pseudo au-dessus d'une voiture (rendu par <Html> de Drei). */
+.car-label {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}

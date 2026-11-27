@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { leaveRoom, startRace } from "../network/roomApi";
 import { useGameStore } from "../store/gameStore";
 import { formatRaceTime, ordinal, ticksToSeconds } from "./format";
@@ -93,6 +94,16 @@ function ResultsPanel() {
   );
 }
 
+/** « GO ! » pendant la première seconde de course. */
+function GoFlash() {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+  return visible ? <div className="countdown go">GO !</div> : null;
+}
+
 /** Tout ce qui s'affiche par-dessus la scène 3D, selon la phase du salon. */
 export function RoomOverlay() {
   const phase = useGameStore((s) => s.race?.phase ?? s.room?.phase);
@@ -105,11 +116,16 @@ export function RoomOverlay() {
       return (
         <>
           <RaceHud />
-          <div className="countdown">{ticksToSeconds(ticksLeft) || "GO"}</div>
+          <div className="countdown">{ticksToSeconds(ticksLeft)}</div>
         </>
       );
     case "racing":
-      return <RaceHud />;
+      return (
+        <>
+          <RaceHud />
+          <GoFlash />
+        </>
+      );
     case "results":
       return <ResultsPanel />;
     default:

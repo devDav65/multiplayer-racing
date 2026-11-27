@@ -2,6 +2,7 @@ import { buildTrack, CIRCUIT_1 } from "@racing/shared";
 import { Canvas } from "@react-three/fiber";
 import { useRef } from "react";
 import { NetworkedGame } from "./game/NetworkedGame";
+import { StartLine } from "./game/tracks/StartLine";
 import { TrackMesh } from "./game/tracks/TrackMesh";
 import { useConnection } from "./hooks/useConnection";
 import { useGameStore } from "./store/gameStore";
@@ -34,6 +35,7 @@ function GameScreen() {
         <ambientLight intensity={0.5} />
         <Ground />
         <TrackMesh track={track} />
+        <StartLine track={track} />
         <NetworkedGame track={track} speedRef={speedRef} correctionRef={correctionRef} />
       </Canvas>
       <div className="hud">

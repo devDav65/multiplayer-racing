@@ -1,4 +1,5 @@
 import { type CarState, isCarFrozen, SIM_DT, type Snapshot, type Track } from "@racing/shared";
+import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { type RefObject, useMemo, useRef, useState } from "react";
 import type { DirectionalLight, Group } from "three";
@@ -9,6 +10,7 @@ import { sendInput } from "../network/inputStream";
 import { Predictor } from "../network/prediction";
 import { INTERPOLATION_DELAY_MS, latestSnapshot, sampleCars } from "../network/snapshotBuffer";
 import { socket } from "../network/socket";
+import { useGameStore } from "../store/gameStore";
 import { CarModel } from "./vehicles/CarModel";
 
 const CAMERA_DISTANCE = 8;
@@ -31,6 +33,9 @@ export function NetworkedGame({ track, speedRef, correctionRef }: NetworkedGameP
   // La LISTE des voitures change rarement (arrivée/départ d'un joueur) : state React.
   // Leurs POSITIONS changent en permanence : refs, modifiées dans useFrame.
   const [carIds, setCarIds] = useState<string[]>([]);
+  // Pseudos et statut spectateur : viennent du roomState (change rarement).
+  const players = useGameStore((s) => s.room?.players);
+  const playerById = useMemo(() => new Map(players?.map((p) => [p.id, p])), [players]);
   const idsKey = useRef("");
   const groups = useRef(new Map<string, Group>());
   const sunRef = useRef<DirectionalLight>(null);
@@ -165,6 +170,12 @@ export function NetworkedGame({ track, speedRef, correctionRef }: NetworkedGameP
           }}
         >
           <CarModel color={id === socket.id ? MY_COLOR : OTHER_COLOR} />
+          {/* Pseudo au-dessus des AUTRES voitures (élément HTML qui suit la voiture). */}
+          {id !== socket.id && !playerById.get(id)?.spectator && (
+            <Html position={[0, 2.4, 0]} center className="car-label">
+              {playerById.get(id)?.name ?? ""}
+            </Html>
+          )}
         </group>
       ))}
       <directionalLight
