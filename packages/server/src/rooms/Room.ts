@@ -1,13 +1,13 @@
 import {
+  type CarState,
+  createCarState,
   MAX_PLAYERS_PER_ROOM,
+  type PlayerInput,
   SIM_DT,
   SIM_TICK_RATE,
   SNAPSHOT_RATE,
-  createCarState,
-  stepCarOnTrack,
-  type CarState,
-  type PlayerInput,
   type Snapshot,
+  stepCarOnTrack,
   type Track,
 } from "@racing/shared";
 
@@ -90,6 +90,12 @@ export class Room {
     return true;
   }
 
+  /** Lecture seule de l'état d'un joueur (tests, et plus tard le système de course). */
+  getPlayerState(id: string): { car: Readonly<CarState>; lastInputSeq: number } | undefined {
+    const player = this.players.get(id);
+    return player && { car: player.car, lastInputSeq: player.lastInputSeq };
+  }
+
   removePlayer(id: string): void {
     this.players.delete(id);
     if (this.players.size === 0) this.stop();
@@ -130,7 +136,8 @@ export class Room {
     }
   }
 
-  private step(): void {
+  /** Un pas de simulation. Appelée par la boucle ; publique pour les tests. */
+  step(): void {
     for (const player of this.players.values()) {
       // Le budget se recharge d'un point par pas serveur, jusqu'au plafond.
       player.budget = Math.min(player.budget + 1, MAX_INPUT_BUDGET);
