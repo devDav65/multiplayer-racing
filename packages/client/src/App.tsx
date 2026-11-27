@@ -28,7 +28,8 @@ function GameScreen() {
 
   return (
     <>
-      <Canvas shadows camera={{ position: [0, 3.5, 8], fov: 60 }}>
+      {/* "percentage" = PCFShadowMap : three 0.187 a retiré PCFSoftShadowMap (défaut de R3F). */}
+      <Canvas shadows="percentage" camera={{ position: [0, 3.5, 8], fov: 60 }}>
         <fog attach="fog" args={["#101820", 80, 400]} />
         <ambientLight intensity={0.5} />
         <Ground />

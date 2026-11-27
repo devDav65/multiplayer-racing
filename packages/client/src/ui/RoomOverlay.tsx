@@ -22,7 +22,8 @@ function LobbyPanel() {
         ))}
       </ul>
       <p className="muted">
-        {room.totalLaps} tours · {room.players.length}/20 joueurs · roule librement en attendant
+        {room.totalLaps} {room.totalLaps > 1 ? "tours" : "tour"} · {room.players.length}/20 joueurs
+        · roule librement en attendant
       </p>
       {isHost ? (
         <button type="button" onClick={startRace}>
@@ -61,7 +62,7 @@ function RaceHud() {
         )}
       </div>
       {me.finished && <div className="banner">Arrivé : {ordinal(me.rank)} !</div>}
-      {!me.finished && race.ticksLeft !== null && (
+      {race.phase === "racing" && !me.finished && race.ticksLeft !== null && (
         <div className="banner">Fin de la course dans {ticksToSeconds(race.ticksLeft)} s</div>
       )}
     </>
