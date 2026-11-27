@@ -7,6 +7,7 @@ describe("loadConfig", () => {
       NODE_ENV: "development",
       PORT: 3001,
       CLIENT_ORIGIN: "http://localhost:5173",
+      TRUST_PROXY: 0,
     });
   });
 

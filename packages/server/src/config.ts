@@ -20,6 +20,8 @@ const envSchema = z.object({
   RACE_LAPS: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(1).max(10).optional()),
   /** Sans base de données, le serveur fonctionne en mode invité seulement. */
   DATABASE_URL: z.preprocess(emptyAsUndefined, z.string().url().optional()),
+  /** Nombre de proxys de confiance devant le serveur (1 derrière Caddy), pour lire la vraie IP. */
+  TRUST_PROXY: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(0).max(5).default(0)),
 });
 
 export type Config = z.infer<typeof envSchema>;

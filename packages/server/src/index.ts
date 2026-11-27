@@ -6,11 +6,12 @@ import {
   type JoinRoomResult,
   type ServerToClientEvents,
 } from "@racing/shared";
-import express from "express";
 import { Server } from "socket.io";
+import { AuthService } from "./auth/AuthService";
 import { loadConfig, loadEnvFile } from "./config";
 import { runMigrations } from "./db/migrate";
 import { createPool } from "./db/pool";
+import { createHttpApp } from "./http/app";
 import { playerInputSchema } from "./network/inputSchema";
 import { RateLimiter } from "./network/RateLimiter";
 import { createRoomSchema, joinRoomSchema } from "./network/roomSchemas";
@@ -38,10 +39,20 @@ const INPUT_PER_SECOND = 75;
 const CONTROL_BURST = 5;
 const CONTROL_PER_SECOND = 2;
 
-const app = express();
+const auth = pool ? new AuthService(pool) : null;
+if (auth) {
+  // Ménage régulier des sessions expirées (elles sont de toute façon refusées).
+  const purge = () =>
+    auth.purgeExpiredSessions().catch((e: Error) => console.error("[db] purge :", e.message));
+  void purge();
+  setInterval(purge, 60 * 60 * 1000).unref();
+}
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", time: Date.now() });
+const app = createHttpApp({
+  auth,
+  clientOrigin: config.CLIENT_ORIGIN,
+  secureCookies: config.NODE_ENV === "production",
+  trustProxy: config.TRUST_PROXY,
 });
 
 const httpServer = createServer(app);
