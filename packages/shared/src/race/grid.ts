@@ -1,4 +1,5 @@
 import { type CarState, createCarState } from "../sim/car";
+import { quantizeCarState } from "../sim/quantize";
 import type { Track } from "../tracks/track";
 
 const GRID_ROW_SPACING = 8; // mètres entre deux rangées
@@ -13,9 +14,11 @@ export function gridPosition(track: Track, slot: number): CarState {
   const rightZ = -Math.sin(heading);
   const row = Math.floor(slot / 2);
   const side = slot % 2 === 0 ? -1 : 1;
-  return createCarState(
-    x - forwardX * row * GRID_ROW_SPACING + rightX * side * GRID_LANE_OFFSET,
-    z - forwardZ * row * GRID_ROW_SPACING + rightZ * side * GRID_LANE_OFFSET,
-    heading,
+  return quantizeCarState(
+    createCarState(
+      x - forwardX * row * GRID_ROW_SPACING + rightX * side * GRID_LANE_OFFSET,
+      z - forwardZ * row * GRID_ROW_SPACING + rightZ * side * GRID_LANE_OFFSET,
+      heading,
+    ),
   );
 }

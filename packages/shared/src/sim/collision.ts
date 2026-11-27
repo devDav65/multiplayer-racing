@@ -1,6 +1,7 @@
 import { SIM_DT } from "../constants";
 import { nearestOnTrack, type Track } from "../tracks/track";
 import { type CarControls, type CarState, stepCar } from "./car";
+import { quantizeCarState } from "./quantize";
 
 export const COLLISION_PARAMS = {
   /** Positions des cercles le long de l'axe de la voiture (m). Positif = vers l'avant. */
@@ -56,8 +57,8 @@ export function collideWithTrack(state: CarState, track: Track, dt: number = SIM
 }
 
 /**
- * Un pas complet de simulation : conduite PUIS collisions.
- * C'est LA fonction que le client (prédiction) et le serveur (vérité) appelleront,
+ * Un pas complet de simulation : conduite, collisions, puis quantification (voir quantize.ts).
+ * C'est LA fonction que le client (prédiction) et le serveur (vérité) appellent,
  * pour être certains d'exécuter exactement la même chose.
  */
 export function stepCarOnTrack(
@@ -66,5 +67,5 @@ export function stepCarOnTrack(
   track: Track,
   dt: number = SIM_DT,
 ): CarState {
-  return collideWithTrack(stepCar(state, controls, dt), track, dt);
+  return quantizeCarState(collideWithTrack(stepCar(state, controls, dt), track, dt));
 }

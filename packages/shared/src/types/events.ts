@@ -1,6 +1,6 @@
+import type { WireSnapshot } from "../net/snapshotCodec";
 import type { PlayerInput } from "./input";
 import type { RoomState } from "./race";
-import type { Snapshot } from "./snapshot";
 
 /** Réponse à une demande de création ou d'entrée dans un salon. */
 export type JoinRoomResult =
@@ -12,8 +12,8 @@ export interface ServerToClientEvents {
   /** Envoyé une seule fois, juste après la connexion. */
   /** `username` : compte reconnu grâce au cookie de session, ou null (invité). */
   welcome: (payload: { playerId: string; serverTime: number; username: string | null }) => void;
-  /** État de toutes les voitures du salon, 20 fois par seconde. */
-  snapshot: (snapshot: Snapshot) => void;
+  /** État de toutes les voitures du salon, 20 fois par seconde (format compact). */
+  snapshot: (snapshot: WireSnapshot) => void;
   /** État du salon (joueurs, hôte, phase, résultats), à chaque changement. */
   roomState: (state: RoomState) => void;
 }

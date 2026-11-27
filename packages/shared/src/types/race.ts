@@ -23,6 +23,8 @@ export interface ResultEntry {
 
 export interface RoomPlayerInfo {
   id: string;
+  /** Numéro réseau (les snapshots compacts désignent les voitures par ce numéro). */
+  netId: number;
   name: string;
   /** Arrivé pendant une course : il regarde et jouera à la suivante. */
   spectator: boolean;

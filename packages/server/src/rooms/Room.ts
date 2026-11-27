@@ -27,6 +27,8 @@ import type { RaceRecord } from "../races/RaceRepository";
 
 interface Player {
   id: string;
+  /** Petit numéro unique dans ce salon, utilisé dans les snapshots compacts. */
+  netId: number;
   name: string;
   /** Compte connecté, ou null pour un invité. */
   userId: number | null;
@@ -80,6 +82,8 @@ export class Room {
   private raceStartedAt: Date | null = null;
   private readonly players = new Map<string, Player>();
   private hostId: string | null = null;
+  /** Prochain numéro réseau à attribuer (jamais réutilisé dans ce salon). */
+  private nextNetId = 1;
   private phase: RacePhase = "lobby";
   /** Tick du début de la phase actuelle. */
   private phaseStartTick = 0;
@@ -119,6 +123,7 @@ export class Room {
 
     this.players.set(id, {
       id,
+      netId: this.nextNetId++,
       name,
       userId,
       slot,
@@ -376,6 +381,7 @@ export class Room {
       race: { phase: this.phase, ticksLeft: this.ticksLeft(), totalLaps: this.laps },
       cars: [...this.players.values()].map((p) => ({
         id: p.id,
+        netId: p.netId,
         x: p.car.x,
         z: p.car.z,
         heading: p.car.heading,
@@ -398,6 +404,7 @@ export class Room {
       totalLaps: this.laps,
       players: [...this.players.values()].map((p) => ({
         id: p.id,
+        netId: p.netId,
         name: p.name,
         spectator: p.spectator,
       })),

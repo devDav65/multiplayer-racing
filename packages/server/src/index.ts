@@ -3,6 +3,7 @@ import {
   buildTrack,
   CIRCUIT_1,
   type ClientToServerEvents,
+  encodeSnapshot,
   type JoinRoomResult,
   type ServerToClientEvents,
 } from "@racing/shared";
@@ -85,7 +86,9 @@ const rooms = new RoomManager(
       track,
       laps: config.RACE_LAPS,
       // volatile : si un client est en retard, ce snapshot est abandonné plutôt qu'empilé.
-      onSnapshot: (snapshot) => io.to(channel(code)).volatile.emit("snapshot", snapshot),
+      // Format compact (voir shared/net/snapshotCodec), encodé une fois pour tout le salon.
+      onSnapshot: (snapshot) =>
+        io.to(channel(code)).volatile.emit("snapshot", encodeSnapshot(snapshot)),
       onRoomState: (state) => io.to(channel(code)).emit("roomState", state),
       // Enregistrement en base en arrière-plan : une base lente ou en panne ne bloque
       // jamais la simulation, et l'erreur est seulement journalisée.

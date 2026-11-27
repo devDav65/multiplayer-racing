@@ -3,6 +3,8 @@ import type { RaceInfo } from "./race";
 /** État d'une voiture tel que le serveur le communique aux clients. */
 export interface CarSnapshot {
   id: string;
+  /** Petit numéro du joueur dans son salon : c'est lui qui circule sur le réseau (voir net/). */
+  netId: number;
   x: number;
   z: number;
   heading: number;
